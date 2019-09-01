@@ -18,7 +18,7 @@
    :where
    [?e :artist/name ?name]
    [?r :release/artist ?e]
-   ;; [?r :release/year ?year]
+   [?r :release/year ?year]
    ;; (> ?year 1970)
 
    ]
@@ -26,7 +26,12 @@
   )
 
 
+(def parsed
+  (s/conform ::ds/query q))
 
+
+
+#_
 (def parsed
   '
   {:find {:find-kw :find, :spec [:rel [[:var ?e] [:var ?r]]]},
@@ -56,6 +61,10 @@
 
                {:db/ident       :release/artist
                 :db/valueType   :db.type/ref
+                :db/cardinality :db.cardinality/one}
+
+               {:db/ident       :release/year
+                :db/valueType   :db.type/integer
                 :db/cardinality :db.cardinality/one}]
 
         am (am/manager attrs)
@@ -105,16 +114,6 @@
                         (vm/bind vm e :where sql)))))
 
                 ;; A
-                #_
-                (let [[tag a] a]
-                  (case tag
-                    :cst
-                    (let [[tag a] a]
-                      (case tag
-                        :kw
-                        (let [where [:= (sql/raw (format "%s.a" prefix)) (kw->str a)]]
-                          (sb/add-where sb where))))))
-
                 (let [where [:= (sql/raw (format "%s.a" prefix)) (kw->str attr)]]
                   (sb/add-where sb where))
 
