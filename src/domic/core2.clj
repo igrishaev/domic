@@ -20,6 +20,7 @@
    [?r :release/artist ?e]
    [?r :release/year ?year]
    [(> ?year 1970)]
+   [(> ?year ?e)]
 
    ]
 
@@ -52,6 +53,20 @@
   (-> kw str (subs 1)))
 
 
+(defn ->pred-arg
+  [arg vm]
+  (let [[tag arg] arg]
+    (case tag
+
+      :cst
+      (let [[_ arg] arg]
+        arg)
+
+      :var
+      (if (vm/bound? vm arg)
+        (vm/get-val vm arg)
+        (throw (new Exception "var not bound"))))))
+
 
 (defn add-predicate
   [expression vm sb]
@@ -62,45 +77,16 @@
     (case tag
       :sym
       (case pred
+        (= > < >= <= != <>)
+        (do
+          (assert (= (count args) 2)
+                  "A predicate takes exactly two arguments")
+          (let [[arg1 arg2] args
+                where [pred
+                       (->pred-arg arg1 vm)
+                       (->pred-arg arg2 vm)]]
 
-        ('= '> '< '>= '<= '<> '!=)
-
-        #_
-        (for [arg args]
-
-          (let [[tag arg] arg1]
-            (case tag
-
-              :cst
-              (let [[_ arg] arg]
-                arg)
-
-              :var
-              (if (vm/bound? vm arg)
-                (vm/get-val vm arg)
-                (throw (new Exception "var not bound"))))))
-
-        (let [[arg1 arg2] args
-
-
-
-              param1
-              (let [[tag arg] arg1]
-                (case tag
-                  :var
-                  (if (vm/bound? vm arg)
-                    (vm/get-val vm arg)
-                    (throw (new Exception "var not bound")))))
-
-              param2
-              (let [[tag arg] arg2]
-                (case tag
-                  :cst
-                  (let [[_ arg] arg]
-                    arg)))
-
-              where [:> param1 param2]]
-          (sb/add-where sb where))))))
+            (sb/add-where sb where)))))))
 
 
 
