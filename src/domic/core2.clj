@@ -19,7 +19,7 @@
    [?e :artist/name ?name]
    [?r :release/artist ?e]
    [?r :release/year ?year]
-   ;; (> ?year 1970)
+   [(> ?year 1970)]
 
    ]
 
@@ -85,6 +85,36 @@
           :expression-clause
           (let [[tag expression] clause]
             (case tag
+
+              :pred-expr
+              (let [{:keys [expr]} expression
+                    {:keys [pred args]} expr
+                    [tag pred] pred]
+
+                (case tag
+                  :sym
+                  (case pred
+                    '>
+                    (let [[arg1 arg2] args
+
+                          param1
+                          (let [[tag arg] arg1]
+                            (case tag
+                              :var
+                              (if (vm/bound? vm arg)
+                                (vm/get-val vm arg)
+                                (throw (new Exception "var not bound")))))
+
+                          param2
+                          (let [[tag arg] arg2]
+                            (case tag
+                              :cst
+                              (let [[_ arg] arg]
+                                arg)))
+
+                          where [:> param1 param2]]
+                      (sb/add-where sb where)))))
+
               :data-pattern
               (let [{:keys [elems]} expression
                     [e a v t] elems
