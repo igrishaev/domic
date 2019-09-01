@@ -52,6 +52,58 @@
   (-> kw str (subs 1)))
 
 
+
+(defn add-predicate
+  [expression vm sb]
+  (let [{:keys [expr]} expression
+        {:keys [pred args]} expr
+        [tag pred] pred]
+
+    (case tag
+      :sym
+      (case pred
+
+        ('= '> '< '>= '<= '<> '!=)
+
+        #_
+        (for [arg args]
+
+          (let [[tag arg] arg1]
+            (case tag
+
+              :cst
+              (let [[_ arg] arg]
+                arg)
+
+              :var
+              (if (vm/bound? vm arg)
+                (vm/get-val vm arg)
+                (throw (new Exception "var not bound"))))))
+
+        (let [[arg1 arg2] args
+
+
+
+              param1
+              (let [[tag arg] arg1]
+                (case tag
+                  :var
+                  (if (vm/bound? vm arg)
+                    (vm/get-val vm arg)
+                    (throw (new Exception "var not bound")))))
+
+              param2
+              (let [[tag arg] arg2]
+                (case tag
+                  :cst
+                  (let [[_ arg] arg]
+                    arg)))
+
+              where [:> param1 param2]]
+          (sb/add-where sb where))))))
+
+
+
 (defn aaa
   [query-parsed]
 
@@ -87,33 +139,7 @@
             (case tag
 
               :pred-expr
-              (let [{:keys [expr]} expression
-                    {:keys [pred args]} expr
-                    [tag pred] pred]
-
-                (case tag
-                  :sym
-                  (case pred
-                    '>
-                    (let [[arg1 arg2] args
-
-                          param1
-                          (let [[tag arg] arg1]
-                            (case tag
-                              :var
-                              (if (vm/bound? vm arg)
-                                (vm/get-val vm arg)
-                                (throw (new Exception "var not bound")))))
-
-                          param2
-                          (let [[tag arg] arg2]
-                            (case tag
-                              :cst
-                              (let [[_ arg] arg]
-                                arg)))
-
-                          where [:> param1 param2]]
-                      (sb/add-where sb where)))))
+              (add-predicate expression vm sb)
 
               :data-pattern
               (let [{:keys [elems]} expression
