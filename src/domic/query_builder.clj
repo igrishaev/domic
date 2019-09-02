@@ -49,6 +49,13 @@
        ~@body)))
 
 
+(defn update-in*
+  [data path func & args]
+  (if (empty? path)
+    (apply func data args)
+    (apply update-in data path func args)))
+
+
 (defn builder
   []
   (let [where-index (atom 0)
