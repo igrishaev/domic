@@ -14,7 +14,17 @@
 
 (def q
   '
-  [:find ?e ?r
+  [:find
+
+   ;; [?e ?r "test"]
+
+   ;; ?e .
+
+   ;; [?e ?r]
+
+   ;; [?e ...]
+
+   ?e ?r
 
    ;; todo add _
 
@@ -152,21 +162,36 @@
       (add-pattern expression vm qb am))))
 
 
+(defn find-add-elem
+  [elem vm qb]
+  (let [[tag elem] elem]
+    (case tag
+      :var
+      (if (vm/bound? vm elem)
+        (let [val (vm/get-val vm elem)]
+          (qb/add-select qb val))
+        (error! "Var %s is not bound" elem)))))
+
+
 (defn process-find
   [spec vm qb]
-  (let [[tag] spec]
+  (let [[tag spec] spec]
     (case tag
+
+      :coll
+      (let [{:keys [elem]} spec]
+        (find-add-elem elem vm qb))
+
+      ;; https://github.com/alexanderkiel/datomic-spec/issues/6
+      ;; :tuple
+
+      :scalar
+      (let [{:keys [elem]} spec]
+        (find-add-elem elem vm qb))
+
       :rel
-      (let [[_ find-rel] spec]
-        (doseq [find-elem find-rel]
-          (let [[tag] find-elem]
-            (case tag
-              :var
-              (let [[_ var] find-elem]
-                (if (vm/bound? vm var)
-                  (let [val (vm/get-val vm var)]
-                    (qb/add-select qb val))
-                  (error! "Var %s is not bound" var))))))))))
+      (doseq [elem spec]
+        (find-add-elem elem vm qb)))))
 
 
 (def zip (partial map vector))
