@@ -1,6 +1,7 @@
 (ns domic.core2
   (:require [datomic-spec.core :as ds]
 
+            [clojure.string :as str]
             [clojure.spec.alpha :as s]
             [honeysql.core :as sql]
 
@@ -21,6 +22,8 @@
    :where
 
    [?e :artist/name ?name]
+
+   [?e :artist/name ?c]
    ;; [?r :release/artist ?e]
    ;; [?r :release/year ?year]
 
@@ -186,12 +189,34 @@
         (let [[tag input] input]
           (case tag
 
+            :bind-rel
+            (let [[input] input
+                  var-alias-list (for [_ input]
+                                   (gensym "var"))
+
+                  values {:values param}
+                  values-name (gensym "coll")
+                  values-alias (sql/raw (format "%s (%s)" values-name (str/join ", " var-alias-list)))
+                  from [values values-alias]]
+
+              (qb/add-from qb from)
+
+              (doseq [[input var-alias] (zip input var-alias-list)]
+                (let [[tag input] input]
+                  (case tag
+                    :var
+                    (let []
+                      (vm/bind vm input :in var-alias))
+                    :unused nil))))
+
+
             :bind-coll
             (let [{:keys [var]} input
                   alias (gensym "coll")
                   alias-var (gensym "coll_var")
                   from-values {:values (mapv vector param)}
-                  from-alias (sql/raw (format "as %s (%s)" alias alias-var))
+                  from-alias (sql/raw
+                              (format "as %s (%s)" alias alias-var))
                   from [from-values from-alias]]
 
               ;; check if bound
