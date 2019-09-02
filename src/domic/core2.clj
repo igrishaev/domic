@@ -14,22 +14,29 @@
 (def q
   '
   [:find ?e ?r
-   :in $ ?name
-   :where
-   [?e :artist/name ?name]
-   [?r :release/artist ?e]
-   [?r :release/year ?year]
 
+   ;; todo add _
+
+   :in $ ?name [?x ?y ?z] [?index ...] [[?a _ ?c]]
+   :where
+
+   [?e :artist/name ?name]
+   ;; [?r :release/artist ?e]
+   ;; [?r :release/year ?year]
+
+   [?r :release/year ?index]
+
+   #_
    (not
     [?r :release/year ?year]
     [(> ?year 1970)])
 
+   #_
    (or
     [?e :artist/name "Abba"]
     [?e :artist/name "Queen"])
 
-
-
+   #_
    [(> ?year ?e)]])
 
 
@@ -82,7 +89,8 @@
 
 (defn add-pattern
   [expression vm qb am]
-  (let [{:keys [elems]} expression
+  (let [{:keys [src-var
+                elems]} expression
         [e a v t] elems
 
         prefix (str (gensym "d"))
@@ -141,8 +149,106 @@
       (add-pattern expression vm qb am))))
 
 
+(defn process-find
+  [spec vm qb]
+  (let [[tag] spec]
+    (case tag
+      :rel
+      (let [[_ find-rel] spec]
+        (doseq [find-elem find-rel]
+          (let [[tag] find-elem]
+            (case tag
+              :var
+              (let [[_ var] find-elem]
+                (if (vm/bound? vm var)
+                  (let [val (vm/get-val vm var)]
+                    (qb/add-select qb val))
+                  (error! "Var %s is not bound" var))))))))))
+
+
+(def zip (partial map vector))
+
+
+(defn process-in
+  [inputs vm qb params]
+
+  (when-not (= (count inputs) (count params))
+    (error! "The number of inputs != the number of parameters"))
+
+  (doseq [[input param] (zip inputs params)]
+    (let [[tag input] input]
+      (case tag
+
+        :src-var
+        (println input)
+
+        :binding
+        (let [[tag input] input]
+          (case tag
+
+            :bind-coll
+            (let [{:keys [var]} input
+                  alias (gensym "coll")
+                  alias-var (gensym "coll_var")
+                  from-values {:values (mapv vector param)}
+                  from-alias (sql/raw (format "as %s (%s)" alias alias-var))
+                  from [from-values from-alias]]
+
+              ;; check if bound
+              (vm/bind vm var :in alias-var)
+              (qb/add-from qb from))
+
+
+            :bind-tuple
+            (do
+              (when-not (= (count input)
+                           (count param))
+                (error! "Arity mismatch: %s != %s" input param))
+
+              (doseq [input input]
+                (let [[tag input] input]
+                  (case tag
+                    :var
+                    ;; check if already bound
+                    (vm/bind vm input :in param)))))
+
+            :bind-scalar
+            (let []
+              (vm/bind vm input :in param))))))))
+
+
+(defn process-where
+  [clauses vm qb am]
+  (doseq [clause clauses]
+    (let [[tag clause] clause]
+      (case tag
+
+        :or-clause
+        (qb/with-where-or qb
+          (let [{:keys [clauses]} clause]
+            (doseq [clause clauses]
+              (let [[tag clause] clause]
+                (case tag
+                  :clause
+                  (let [[tag clause] clause]
+                    :expression-clause
+                    (add-clause clause vm qb am)))))))
+
+        :not-clause
+        (qb/with-where-not-and qb
+          (let [{:keys [clauses]} clause]
+            (doseq [clause clauses]
+              (let [[tag clause] clause]
+                (case tag
+                  :expression-clause
+                  (add-clause clause vm qb am))))))
+
+        :expression-clause
+        (add-clause clause vm qb am)))))
+
+
 (defn aaa
-  [query-parsed]
+  [query-parsed & query-inputs]
 
   (let [attrs [{:db/ident       :artist/name
                 :db/valueType   :db.type/string
@@ -157,56 +263,17 @@
                 :db/cardinality :db.cardinality/one}]
 
         am (am/manager attrs)
-
         vm (vm/manager)
-
         qb (qb/builder)
 
         {:keys [find in where]} query-parsed
 
+        {:keys [inputs]} in
         {:keys [spec]} find
         {:keys [clauses]} where]
 
-    (doseq [clause clauses]
-
-      (let [[tag clause] clause]
-        (case tag
-
-          :or-clause
-          (qb/with-where-or qb
-            (let [{:keys [clauses]} clause]
-              (doseq [clause clauses]
-                (let [[tag clause] clause]
-                  (case tag
-                    :clause
-                    (let [[tag clause] clause]
-                      :expression-clause
-                      (add-clause clause vm qb am)))))))
-
-          :not-clause
-          (qb/with-where-not-and qb
-            (let [{:keys [clauses]} clause]
-              (doseq [clause clauses]
-                (let [[tag clause] clause]
-                  (case tag
-                    :expression-clause
-                    (add-clause clause vm qb am))))))
-
-          :expression-clause
-          (add-clause clause vm qb am))))
-
-    (let [[tag] spec]
-      (case tag
-        :rel
-        (let [[_ find-rel] spec]
-          (doseq [find-elem find-rel]
-            (let [[tag] find-elem]
-              (case tag
-                :var
-                (let [[_ var] find-elem]
-                  (if (vm/bound? vm var)
-                    (let [val (vm/get-val vm var)]
-                      (qb/add-select qb val))
-                    (error! "Var %s is not bound" var)))))))))
+    (process-in inputs vm qb query-inputs)
+    (process-where clauses vm qb am)
+    (process-find spec vm qb)
 
     (qb/->map qb)))
