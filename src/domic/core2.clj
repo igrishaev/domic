@@ -18,36 +18,23 @@
    :where
    [?e :artist/name ?name]
    [?r :release/artist ?e]
+   [?r :release/year ?year]
+
    (not
     [?r :release/year ?year]
     [(> ?year 1970)])
-   [(> ?year ?e)]
 
-   ]
+   (or
+    [?e :artist/name "Abba"]
+    [?e :artist/name "Queen"])
 
-  )
+
+
+   [(> ?year ?e)]])
 
 
 (def parsed
   (s/conform ::ds/query q))
-
-
-
-#_
-(def parsed
-  '
-  {:find {:find-kw :find, :spec [:rel [[:var ?e] [:var ?r]]]},
-   :where
-   {:where-kw :where,
-    :clauses
-    [[:expression-clause
-      [:data-pattern
-       {:elems
-        [[:var ?e] [:cst [:kw :artist/name]] [:cst [:str "Queen"]]]}]]
-     [:expression-clause
-      [:data-pattern
-       {:elems [[:var ?r] [:cst [:kw :release/artist]] [:var ?e]]}]]]}})
-
 
 
 (defn error!
@@ -184,6 +171,17 @@
 
       (let [[tag clause] clause]
         (case tag
+
+          :or-clause
+          (qb/with-where-or qb
+            (let [{:keys [clauses]} clause]
+              (doseq [clause clauses]
+                (let [[tag clause] clause]
+                  (case tag
+                    :clause
+                    (let [[tag clause] clause]
+                      :expression-clause
+                      (add-clause clause vm qb am)))))))
 
           :not-clause
           (qb/with-where-not-and qb

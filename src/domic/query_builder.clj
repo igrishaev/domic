@@ -43,9 +43,9 @@
      (with-where-and ~qb
        ~@body)))
 
-(defmacro with-where-not-or [qb & body]
-  `(with-where-not ~qb
-     (with-where-or ~qb
+(defmacro with-where-or-and [qb & body]
+  `(with-where-or ~qb
+     (with-where-and ~qb
        ~@body)))
 
 
