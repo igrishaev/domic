@@ -28,6 +28,9 @@
        (finally
          (where-stack-down ~qb)))))
 
+(defmacro with-where-and [qb & body]
+  `(with-where ~qb :and ~@body))
+
 (defmacro with-where-not [qb & body]
   `(with-where ~qb :not ~@body))
 

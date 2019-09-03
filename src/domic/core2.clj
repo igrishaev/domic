@@ -1,15 +1,27 @@
 (ns domic.core2
-  (:require [datomic-spec.core :as ds]
+  (:require
 
-            [clojure.string :as str]
-            [clojure.spec.alpha :as s]
-            [honeysql.core :as sql]
+   [clojure.string :as str]
+   [clojure.spec.alpha :as s]
 
-            [domic.var-manager :as vm]
-            [domic.query-builder :as qb]
-            [domic.attr-manager :as am]
+   [domic.error :refer [error!]]
+   [domic.db :as db]
+   [domic.var-manager :as vm]
+   [domic.query-builder :as qb]
+   [domic.attr-manager :as am]
+   [domic.db-manager :as dm]
 
-            ))
+   [honeysql.core :as sql]
+   [datomic-spec.core :as ds]))
+
+
+(def table
+  [[5 6 7 8]
+   [5 6 7 8]
+   [5 6 7 8]
+   [5 6 7 8]
+   [5 6 7 8]
+   [5 6 7 8]])
 
 
 (def q
@@ -28,16 +40,21 @@
 
    ;; todo add _
 
-   :in $ ?name [?x ?y ?z] [?index ...] [[?a _ ?c]]
+   ;; :in $ $foo $bar ?name [?x ?y ?z] [?index ...] [[?a _ ?c]]
+
+   :in $ $foo ?name
+
    :where
 
    [?e :artist/name ?name]
 
-   [?e :artist/name ?c]
-   ;; [?r :release/artist ?e]
+   ;; [?e :artist/name ?c]
+   [?r :release/artist ?e]
    ;; [?r :release/year ?year]
 
-   [?r :release/year ?index]
+   ;; [(get-else $ ?artist :artist/startYear "N/A") ?year]
+
+   ;; [?r :release/year ?index]
 
    #_
    (not
@@ -55,11 +72,6 @@
 
 (def parsed
   (s/conform ::ds/query q))
-
-
-(defn error!
-  [message & args]
-  (throw (new Exception ^String (apply format message args))))
 
 
 (defn kw->str [kw]
@@ -101,65 +113,23 @@
 
 
 (defn add-pattern
-  [expression vm qb am]
-  (let [{:keys [src-var
-                elems]} expression
-        [e a v t] elems
-
-        prefix (str (gensym "d"))
-
-        attr
-        (let [[tag a] a]
-          (case tag
-            :cst
-            (let [[tag a] a]
-              (case tag
-                :kw a))))
-
-        pg-type (am/get-pg-type am attr)]
-
-    (qb/add-from qb [:datoms (keyword prefix)])
-
-    ;; E
-    (let [[tag e] e]
-      (case tag
-        :var
-        (let [sql (keyword (format "%s.e" prefix))]
-          (if (vm/bound? vm e)
-            (let [where [:= sql (vm/get-val vm e)]]
-              (qb/add-where qb where))
-            (vm/bind vm e :where sql)))))
-
-    ;; A
-    (let [where [:= (sql/raw (format "%s.a" prefix)) (kw->str attr)]]
-      (qb/add-where qb where))
-
-    ;; V
-    (let [[tag v] v]
-
-      (let [sql (sql/raw (format "%s.v::%s" prefix pg-type))]
-
-        (case tag
-          :cst
-          (let [[tag v] v]
-            (let [where [:= sql v]]
-              (qb/add-where qb where)))
-
-          :var
-          (if (vm/bound? vm v)
-            (let [where [:= sql (vm/get-val vm v)]]
-              (qb/add-where qb where))
-            (vm/bind vm v :where sql)))))))
+  [expression vm qb am dm]
+  (let [db (dm/default-db! dm)]
+    (db/add-pattern db expression vm qb am)))
 
 
 (defn add-clause
-  [clause vm qb am]
+  [clause vm qb am dm]
   (let [[tag expression] clause]
     (case tag
+
+      ;; :fn-expr
+
       :pred-expr
       (add-predicate expression vm qb)
+
       :data-pattern
-      (add-pattern expression vm qb am))))
+      (add-pattern expression vm qb am dm))))
 
 
 (defn find-add-elem
@@ -198,17 +168,19 @@
 
 
 (defn process-in
-  [inputs vm qb params]
+  [inputs vm qb dm params]
 
   (when-not (= (count inputs) (count params))
     (error! "The number of inputs != the number of parameters"))
 
-  (doseq [[input param] (zip inputs params)]
-    (let [[tag input] input]
+  (doseq [[input-src param] (zip inputs params)]
+    (let [[tag input] input-src]
       (case tag
 
         :src-var
-        (println input)
+        (let [db (db/->db param)]
+          (db/db-init db qb)
+          (dm/add-db dm input db))
 
         :binding
         (let [[tag input] input]
@@ -230,8 +202,7 @@
                 (let [[tag input] input]
                   (case tag
                     :var
-                    (let []
-                      (vm/bind vm input :in var-alias))
+                    (vm/bind! vm input var-alias :in input-src nil)
                     :unused nil))))
 
 
@@ -244,8 +215,7 @@
                               (format "as %s (%s)" alias alias-var))
                   from [from-values from-alias]]
 
-              ;; check if bound
-              (vm/bind vm var :in alias-var)
+              (vm/bind! vm var alias-var :in input-src nil)
               (qb/add-from qb from))
 
 
@@ -259,16 +229,14 @@
                 (let [[tag input] input]
                   (case tag
                     :var
-                    ;; check if already bound
-                    (vm/bind vm input :in param)))))
+                    (vm/bind! vm input param :in input-src nil)))))
 
             :bind-scalar
-            (let []
-              (vm/bind vm input :in param))))))))
+            (vm/bind! vm input param :in input-src nil)))))))
 
 
 (defn process-where
-  [clauses vm qb am]
+  [clauses vm qb am dm]
   (doseq [clause clauses]
     (let [[tag clause] clause]
       (case tag
@@ -294,7 +262,10 @@
                   (add-clause clause vm qb am))))))
 
         :expression-clause
-        (add-clause clause vm qb am)))))
+        (add-clause clause vm qb am dm)))))
+
+
+(def PG (db/db-pg))
 
 
 (defn aaa
@@ -315,6 +286,7 @@
         am (am/manager attrs)
         vm (vm/manager)
         qb (qb/builder)
+        dm (dm/manager)
 
         {:keys [find in where]} query-parsed
 
@@ -322,8 +294,8 @@
         {:keys [spec]} find
         {:keys [clauses]} where]
 
-    (process-in inputs vm qb query-inputs)
-    (process-where clauses vm qb am)
+    (process-in inputs vm qb dm query-inputs)
+    (process-where clauses vm qb am dm)
     (process-find spec vm qb)
 
     (qb/->map qb)))
