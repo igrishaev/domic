@@ -10,6 +10,7 @@
    [domic.query-builder :as qb]
    [domic.attr-manager :as am]
    [domic.db-manager :as dm]
+   [domic.util :refer [join]]
 
    [honeysql.core :as sql]
    [datomic-spec.core :as ds]))
@@ -188,36 +189,29 @@
 
             :bind-rel
             (let [[input] input
-                  var-alias-list (for [_ input]
-                                   (gensym "var"))
-
-                  values {:values param}
-                  values-name (gensym "coll")
-                  values-alias (sql/raw (format "%s (%s)" values-name (str/join ", " var-alias-list)))
-                  from [values values-alias]]
+                  fields (for [_ input] (gensym "field"))
+                  as (gensym "coll")
+                  alias (sql/raw (format "%s (%s)" as (join fields)))
+                  from [{:values param} alias]]
 
               (qb/add-from qb from)
 
-              (doseq [[input var-alias] (zip input var-alias-list)]
+              (doseq [[input field] (zip input fields)]
                 (let [[tag input] input]
                   (case tag
                     :var
-                    (vm/bind! vm input var-alias :in input-src nil)
+                    (vm/bind! vm input field :in input-src nil)
                     :unused nil))))
-
 
             :bind-coll
             (let [{:keys [var]} input
-                  alias (gensym "coll")
-                  alias-var (gensym "coll_var")
-                  from-values {:values (mapv vector param)}
-                  from-alias (sql/raw
-                              (format "as %s (%s)" alias alias-var))
-                  from [from-values from-alias]]
-
-              (vm/bind! vm var alias-var :in input-src nil)
+                  as (gensym "coll")
+                  field (gensym "field")
+                  values {:values (mapv vector param)}
+                  alias (sql/raw (format "%s (%s)" as field))
+                  from [values alias]]
+              (vm/bind! vm var field :in input-src nil)
               (qb/add-from qb from))
-
 
             :bind-tuple
             (do
@@ -225,11 +219,11 @@
                            (count param))
                 (error! "Arity mismatch: %s != %s" input param))
 
-              (doseq [input input]
+              (doseq [[input param-el] (zip input param)]
                 (let [[tag input] input]
                   (case tag
                     :var
-                    (vm/bind! vm input param :in input-src nil)))))
+                    (vm/bind! vm input param :in input-src (type param-el))))))
 
             :bind-scalar
             (vm/bind! vm input param :in input-src nil)))))))
@@ -298,4 +292,4 @@
     (process-where clauses vm qb am dm)
     (process-find spec vm qb)
 
-    (qb/->map qb)))
+    (qb/format qb)))

@@ -34,8 +34,7 @@
     nil)
 
   (add-pattern [this expression vm qb am]
-    (let [{:keys [src-var
-                  elems]} expression
+    (let [{:keys [elems]} expression
           [e a v t] elems
 
           prefix (str (gensym "d"))
@@ -100,11 +99,10 @@
 
   (db-init [this qb]
     (let [[row] table
-          as (gensym "coll")
-          fields (for [_ row] (gensym "var"))
-          alias (sql/raw (format "%s (%s)" as (join fields)))
-          from [{:values table} alias]]
-      (qb/add-from qb from)))
+          fields (for [_ row] (gensym "FIELD"))
+          as (gensym "TABLE")
+          with [[as {:columns fields}] {:values table}]]
+      (qb/add-with qb with)))
 
   (add-pattern [this expression vm qb am]
     (error! "not implemented")))

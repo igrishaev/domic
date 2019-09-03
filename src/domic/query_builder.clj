@@ -11,6 +11,8 @@
 
   (add-select [this select])
 
+  (add-with [this clause])
+
   (add-from [this from])
 
   (add-where [this where])
@@ -70,11 +72,14 @@
   (where-stack-down [this]
     (swap! where-path (comp vec butlast)))
 
-  (add-select [this select]
-    (swap! sql update :select conj select))
+  (add-with [this clause]
+    (swap! sql update :with conj clause))
 
-  (add-from [this from]
-    (swap! sql update :from conj from))
+  (add-select [this clause]
+    (swap! sql update :select conj clause))
+
+  (add-from [this clause]
+    (swap! sql update :from conj clause))
 
   (add-where [this clause]
     (swap! where update-in* @where-path conj clause))
@@ -90,7 +95,10 @@
   []
   (->QueryBuilder (atom [:and])
                   (atom [])
-                  (atom {:select [] :from []})))
+                  (atom {:with [] :select [] :from []})))
+
+
+(def builder? (partial satisfies? IQueryBuilder))
 
 
 #_
