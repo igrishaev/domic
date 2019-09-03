@@ -6,7 +6,7 @@
    [domic.var-manager :as vm]
    [domic.query-builder :as qb]
    [domic.attr-manager :as am]
-   [domic.util :refer [join kw->str]]
+   [domic.util :refer [join kw->str zip]]
 
    [honeysql.core :as sql]))
 
@@ -15,6 +15,8 @@
 
   (add-pattern [this expression vm qb am])
 
+  (set-fields [this fields])
+
   (db-init [this qb])
 
   (db-type [this]))
@@ -22,95 +24,114 @@
 
 (def db? (partial satisfies? IDB))
 
-
 (defrecord DBPG
-    []
+    [as fields]
 
-  IDB
+    IDB
 
-  (db-type [this] :pg)
+    (db-type [this] :pg)
 
-  (db-init [this qb]
-    nil)
+    (db-init [this qb])
 
-  (add-pattern [this expression vm qb am]
-    (let [{:keys [elems]} expression
-          [e a v t] elems
+    (add-pattern [this expression vm qb am]
 
-          prefix (str (gensym "d"))
+      (let [{:keys [elems]} expression
+            [_ A] elems
+            layer (gensym "DATOMS")
 
-          attr
-          (let [[tag a] a]
-            (case tag
-              :cst
-              (let [[tag a] a]
+            attr
+            (when A
+              (let [[tag a] A]
                 (case tag
-                  :kw a))))
+                  :cst
+                  (let [[tag a] a]
+                    (case tag
+                      :kw a)))))
 
-          pg-type (am/get-pg-type am attr)]
+            type-pg
+            (when attr
+              (am/get-pg-type am attr))]
 
-      (qb/add-from qb [:datoms (keyword prefix)])
+        (qb/add-from qb [as layer])
 
-      ;; E
-      (let [[tag e] e]
-        (case tag
-          :var
-          (let [sql (keyword (format "%s.e" prefix))]
-            (if (vm/bound? vm e)
-              (let [where [:= sql (vm/get-val vm e)]]
-                (qb/add-where qb where))
-              (vm/bind! vm e sql :where elems :integer)))))
+        (doseq [[elem field] (zip elems fields)]
 
-      ;; A
-      (let [where [:= (sql/raw (format "%s.a" prefix)) (kw->str attr)]]
-        (qb/add-where qb where))
+          (let [[tag elem] elem
 
-      ;; V
-      (let [[tag v] v]
+                cast
+                (when (and (= field 'v)
+                           (some? type-pg)
+                           (not= type-pg "text"))
+                  (format "::%s" type-pg))
 
-        (let [sql (sql/raw (format "%s.v::%s" prefix pg-type))]
+                fq-field
+                (sql/raw
+                 (format "%s.%s%s" layer field (or cast "")))]
 
-          (case tag
-            :cst
-            (let [[tag v] v]
-              (let [where [:= sql v]]
-                (qb/add-where qb where)))
+            (case tag
 
-            :var
-            (if (vm/bound? vm v)
-              (let [where [:= sql (vm/get-val vm v)]]
-                (qb/add-where qb where))
-              (vm/bind! vm v sql :where elems pg-type))))))))
+              :cst
+              (let [[tag v] elem]
+                (let [where [:= fq-field v]]
+                  (qb/add-where qb where)))
+
+              :var
+              (if (vm/bound? vm elem)
+                (let [where [:= fq-field (vm/get-val vm elem)]]
+                  (qb/add-where qb where))
+                (vm/bind! vm elem fq-field :where elems nil))))))))
 
 
 (defn db-pg []
-  (->DBPG))
+  (->DBPG :datoms '[e a v t]))
 
 
 (def db-pg? (partial instance? DBPG))
 
 
 (defrecord DBTable
-    [table]
+    [data as fields]
 
   IDB
 
   (db-type [this] :table)
 
   (db-init [this qb]
-    (let [[row] table
-          fields (for [_ row] (gensym "FIELD"))
-          as (gensym "TABLE")
-          with [[as {:columns fields}] {:values table}]]
+    (let [with [[as {:columns fields}] {:values data}]]
       (qb/add-with qb with)))
 
   (add-pattern [this expression vm qb am]
-    (error! "not implemented")))
+
+    (let [{:keys [elems]} expression
+          layer (gensym "TABLE")]
+
+      (qb/add-from qb [as layer])
+
+      (doseq [[elem field] (zip elems fields)]
+
+        (let [[tag elem] elem
+              fq-field (sql/raw (format "%s.%s" layer field))]
+
+          (case tag
+
+            :cst
+            (let [[tag v] elem]
+              (let [where [:= fq-field v]]
+                (qb/add-where qb where)))
+
+            :var
+            (if (vm/bound? vm elem)
+              (let [where [:= fq-field (vm/get-val vm elem)]]
+                (qb/add-where qb where))
+              (vm/bind! vm elem fq-field :where elems nil))))))))
 
 
 (defn ->db-table
-  [table]
-  (->DBTable table))
+  [data]
+  (let [[row] data
+        as (gensym "TABLE")
+        fields (for [_ row] (gensym "FIELD"))]
+    (->DBTable data as fields)))
 
 
 (defn ->db

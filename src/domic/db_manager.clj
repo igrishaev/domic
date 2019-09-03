@@ -7,6 +7,10 @@
 
   (add-db [this var db])
 
+  (get-db [this var])
+
+  (get-db! [this var])
+
   (default-db [this])
 
   (default-db! [this]))
@@ -19,6 +23,13 @@
 
   (add-db [this var db]
     (swap! dbs assoc var db))
+
+  (get-db [this var]
+    (get @dbs var))
+
+  (get-db! [this var]
+    (or (get-db this var)
+        (error! "No such db: %s" var)))
 
   (default-db [this]
     (some-> @dbs first second))

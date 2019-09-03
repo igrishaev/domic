@@ -10,7 +10,7 @@
    [domic.query-builder :as qb]
    [domic.attr-manager :as am]
    [domic.db-manager :as dm]
-   [domic.util :refer [join]]
+   [domic.util :refer [join zip]]
 
    [honeysql.core :as sql]
    [datomic-spec.core :as ds]))
@@ -25,6 +25,7 @@
    [5 6 7 8]])
 
 
+#_
 (def q
   '
   [:find
@@ -71,6 +72,16 @@
    [(> ?year ?e)]])
 
 
+(def q
+  '
+  [:find ?e ?a ?b ?c
+   :in $ $foo ?name
+   :where
+   [$ ?e :artist/name ?name]
+   [$foo ?a ?b ?c]
+   ])
+
+
 (def parsed
   (s/conform ::ds/query q))
 
@@ -115,7 +126,10 @@
 
 (defn add-pattern
   [expression vm qb am dm]
-  (let [db (dm/default-db! dm)]
+  (let [{:keys [src-var]} expression
+        db (if src-var
+             (dm/get-db! dm src-var)
+             (dm/default-db! dm))]
     (db/add-pattern db expression vm qb am)))
 
 
@@ -163,9 +177,6 @@
       :rel
       (doseq [elem spec]
         (find-add-elem elem vm qb)))))
-
-
-(def zip (partial map vector))
 
 
 (defn process-in
@@ -292,4 +303,4 @@
     (process-where clauses vm qb am dm)
     (process-find spec vm qb)
 
-    (qb/format qb)))
+    (qb/->map qb)))

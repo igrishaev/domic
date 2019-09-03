@@ -7,3 +7,6 @@
 
 (defn kw->str [kw]
   (-> kw str (subs 1)))
+
+
+(def zip (partial map vector))
