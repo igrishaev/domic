@@ -1,9 +1,13 @@
 (ns domic.query-builder
-  (:refer-clojure :exclude [format])
-  (:require [honeysql.core :as sql]))
+  (:refer-clojure :exclude [format gen-sym])
+  (:require
+   [honeysql.core :as sql]
+   [domic.util :refer [sym-generator]]))
 
 
 (defprotocol IQueryBuilder
+
+  (gen-sym [this] [this prefix])
 
   (where-stack-up [this op])
 
@@ -67,48 +71,56 @@
 (defrecord QueryBuilder
     [where
      where-path
-     sql]
+     sql
+     sym-gen]
 
-    IQueryBuilder
+  IQueryBuilder
 
-    (where-stack-up [this op]
-      (let [index (count (get-in @where @where-path))]
-        (swap! where update-in* @where-path conj* [op])
-        (swap! where-path conj* index)))
+  (gen-sym [this]
+    (sym-gen))
 
-    (where-stack-down [this]
-      (swap! where-path (comp vec butlast)))
+  (gen-sym [this prefix]
+    (sym-gen prefix))
 
-    (add-where [this clause]
-      (swap! where update-in* @where-path conj* clause))
+  (where-stack-up [this op]
+    (let [index (count (get-in @where @where-path))]
+      (swap! where update-in* @where-path conj* [op])
+      (swap! where-path conj* index)))
 
-    (add-clause [this section clause]
-      (swap! sql update section conj* clause))
+  (where-stack-down [this]
+    (swap! where-path (comp vec butlast)))
 
-    (add-with [this clause]
-      (add-clause this :with clause))
+  (add-where [this clause]
+    (swap! where update-in* @where-path conj* clause))
 
-    (add-select [this clause]
-      (add-clause this :select clause))
+  (add-clause [this section clause]
+    (swap! sql update section conj* clause))
 
-    (add-group-by [this clause]
-      (add-clause this :group-by clause))
+  (add-with [this clause]
+    (add-clause this :with clause))
 
-    (add-from [this clause]
-      (add-clause this :from clause))
+  (add-select [this clause]
+    (add-clause this :select clause))
 
-    (->map [this]
-      (assoc @sql :where @where))
+  (add-group-by [this clause]
+    (add-clause this :group-by clause))
 
-    (format [this]
-      (sql/format (->map this))))
+  (add-from [this clause]
+    (add-clause this :from clause))
+
+  (->map [this]
+    (assoc @sql :where @where))
+
+  (format [this]
+    (sql/format (->map this))))
 
 
 (defn builder
   []
   (->QueryBuilder (atom [:and])
                   (atom [])
-                  (atom {})))
+                  (atom {})
+                  (sym-generator)))
 
 
 (def builder? (partial satisfies? IQueryBuilder))

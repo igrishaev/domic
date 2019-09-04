@@ -160,7 +160,7 @@
 (defn add-find-elem
   [find-elem* vm qb]
   (let [[tag find-elem] find-elem*
-        alias (gensym "FIELD")]
+        alias (qb/gen-sym qb "f")]
 
     (case tag
 
@@ -253,8 +253,8 @@
 
             :bind-rel
             (let [[input] input
-                  fields (for [_ input] (gensym "field"))
-                  as (gensym "coll")
+                  fields (for [_ input] (qb/gen-sym qb "f"))
+                  as (qb/gen-sym qb "coll")
                   alias (sql/raw (format "%s (%s)" as (join fields)))
                   from [{:values param} alias]]
 
@@ -269,8 +269,8 @@
 
             :bind-coll
             (let [{:keys [var]} input
-                  as (gensym "coll")
-                  field (gensym "field")
+                  as (qb/gen-sym qb "coll")
+                  field (qb/gen-sym qb "f")
                   values {:values (mapv vector param)}
                   alias (sql/raw (format "%s (%s)" as field))
                   from [values alias]]

@@ -10,3 +10,14 @@
 
 
 (def zip (partial map vector))
+
+
+(defn sym-generator
+  []
+  (let [state (atom {})
+        inc* (fnil inc 0)]
+    (fn [& [prefix]]
+      (let [prefix (or prefix "_")
+            state* (swap! state update prefix inc*)
+            num (get state* prefix)]
+        (symbol (str prefix num))))))

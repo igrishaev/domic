@@ -6,7 +6,7 @@
    [domic.var-manager :as vm]
    [domic.query-builder :as qb]
    [domic.attr-manager :as am]
-   [domic.util :refer [join kw->str zip]]
+   [domic.util :refer [join zip]]
 
    [honeysql.core :as sql]))
 
@@ -37,7 +37,7 @@
 
       (let [{:keys [elems]} expression
             [_ A] elems
-            layer (gensym "DATOMS")
+            layer (qb/gen-sym qb "d")
 
             attr
             (when A
@@ -108,7 +108,7 @@
   (add-pattern [this expression vm qb am]
 
     (let [{:keys [elems]} expression
-          layer (gensym "TABLE")]
+          layer (qb/gen-sym qb "t")]
 
       (qb/add-from qb [as layer])
 
@@ -136,8 +136,8 @@
 (defn ->db-table
   [data]
   (let [[row] data
-        as (gensym "TABLE")
-        fields (for [_ row] (gensym "FIELD"))]
+        as (gensym "t")
+        fields (for [_ row] (gensym "f"))]
     (->DBTable data as fields)))
 
 
