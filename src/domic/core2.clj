@@ -196,6 +196,9 @@
         find-elem-list
         (case tag
 
+          ;; query meta info
+
+          ;; https://github.com/alexanderkiel/datomic-spec/issues/6
           ;; :tuple
 
           (:coll :scalar)
@@ -210,26 +213,7 @@
     (doseq [[find-elem agg?] (zip find-elem-list are-aggs?)]
       (let [alias (add-find-elem find-elem vm qb)]
         (when (and has-agg? (not agg?))
-          (qb/add-group-by qb alias))))
-
-
-    #_
-    (case tag
-
-      :coll
-      (let [{:keys [elem]} spec]
-        (add-find-elem elem vm qb))
-
-      ;; https://github.com/alexanderkiel/datomic-spec/issues/6
-      ;; :tuple
-
-      :scalar
-      (let [{:keys [elem]} spec]
-        (add-find-elem elem vm qb))
-
-      :rel
-      (doseq [elem spec]
-        (add-find-elem elem vm qb)))))
+          (qb/add-group-by qb alias))))))
 
 
 (defn process-in
