@@ -72,6 +72,7 @@
    [(> ?year ?e)]])
 
 
+#_
 (def q
   '
   [:find (max ?e) ?a ?b ?c
@@ -80,6 +81,15 @@
    [$ ?e :artist/name ?name]
    [$foo ?a ?b ?c]
    ])
+
+
+(def q
+  '
+  [:find (max ?e) ?name (min ?t)
+   :in $ ?name
+   :where
+   [$ ?e :artist/name ?name]
+   [$ ?e _ _ ?t]])
 
 
 (def parsed
@@ -147,47 +157,79 @@
       (add-pattern expression vm qb am dm))))
 
 
-(defn find-add-elem
-  [elem vm qb]
-  (let [[tag elem] elem]
+(defn add-find-elem
+  [find-elem* vm qb]
+  (let [[tag find-elem] find-elem*
+        alias (gensym "FIELD")]
+
     (case tag
 
       :agg
-      (let [{:keys [name args]} elem
+      (let [{:keys [name args]} find-elem
             call (apply sql/call name
                         (for [arg args]
                           (let [[tag arg] arg]
                             (case tag
                               :var ;; check if bound
                               (vm/get-val vm arg)))))]
-        (qb/add-select qb call))
+        (qb/add-select qb [call alias]))
 
       :var
-      (if (vm/bound? vm elem)
-        (let [val (vm/get-val vm elem)]
-          (qb/add-select qb val))
-        (error! "Var %s is not bound" elem)))))
+      (let [val (vm/get-val! vm find-elem)]
+        (qb/add-select qb [val alias]))
+
+      (error! "No matching clause: %s" find-elem*))
+
+    alias))
+
+
+(defn find-elem-agg?
+  [find-elem]
+  (let [[tag _] find-elem]
+    (= tag :agg)))
 
 
 (defn process-find
-  [spec vm qb]
-  (let [[tag spec] spec]
+  [find-spec vm qb]
+  (let [[tag find-spec] find-spec
+
+        find-elem-list
+        (case tag
+
+          ;; :tuple
+
+          (:coll :scalar)
+          (let [{:keys [elem]} find-spec]
+            [elem])
+
+          :rel find-spec)
+
+        are-aggs? (map find-elem-agg? find-elem-list)
+        has-agg? (some identity are-aggs?)]
+
+    (doseq [[find-elem agg?] (zip find-elem-list are-aggs?)]
+      (let [alias (add-find-elem find-elem vm qb)]
+        (when (and has-agg? (not agg?))
+          (qb/add-group-by qb alias))))
+
+
+    #_
     (case tag
 
       :coll
       (let [{:keys [elem]} spec]
-        (find-add-elem elem vm qb))
+        (add-find-elem elem vm qb))
 
       ;; https://github.com/alexanderkiel/datomic-spec/issues/6
       ;; :tuple
 
       :scalar
       (let [{:keys [elem]} spec]
-        (find-add-elem elem vm qb))
+        (add-find-elem elem vm qb))
 
       :rel
       (doseq [elem spec]
-        (find-add-elem elem vm qb)))))
+        (add-find-elem elem vm qb)))))
 
 
 (defn process-in
@@ -314,4 +356,4 @@
     (process-where clauses vm qb am dm)
     (process-find spec vm qb)
 
-    (qb/->map qb)))
+    (qb/format qb)))

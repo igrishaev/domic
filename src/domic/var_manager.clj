@@ -17,7 +17,9 @@
 
   (bound? [this var])
 
-  (get-val [this var]))
+  (get-val [this var])
+
+  (get-val! [this var]))
 
 
 (defrecord VarManager
@@ -33,6 +35,10 @@
 
   (get-val [this var]
     (getter this var :val))
+
+  (get-val! [this var]
+    (or (get-val this var)
+        (error! "Var %s is unbound" var)))
 
   (gen-prefix [this]
     (str (gensym "d")))

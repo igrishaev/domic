@@ -46,7 +46,8 @@
                   :cst
                   (let [[tag a] a]
                     (case tag
-                      :kw a)))))
+                      :kw a))
+                  nil)))
 
             type-pg
             (when attr
@@ -54,9 +55,9 @@
 
         (qb/add-from qb [as layer])
 
-        (doseq [[elem field] (zip elems fields)]
+        (doseq [[elem* field] (zip elems fields)]
 
-          (let [[tag elem] elem
+          (let [[tag elem] elem*
 
                 cast
                 (when (and (= field 'v)
@@ -70,6 +71,8 @@
 
             (case tag
 
+              :blank nil
+
               :cst
               (let [[tag v] elem]
                 (let [where [:= fq-field v]]
@@ -79,7 +82,9 @@
               (if (vm/bound? vm elem)
                 (let [where [:= fq-field (vm/get-val vm elem)]]
                   (qb/add-where qb where))
-                (vm/bind! vm elem fq-field :where elems nil))))))))
+                (vm/bind! vm elem fq-field :where elems nil))
+
+              (error! "No matching clause: %s" elem*)))))))
 
 
 (defn db-pg []
@@ -107,9 +112,9 @@
 
       (qb/add-from qb [as layer])
 
-      (doseq [[elem field] (zip elems fields)]
+      (doseq [[elem* field] (zip elems fields)]
 
-        (let [[tag elem] elem
+        (let [[tag elem] elem*
               fq-field (sql/raw (format "%s.%s" layer field))]
 
           (case tag
@@ -123,7 +128,9 @@
             (if (vm/bound? vm elem)
               (let [where [:= fq-field (vm/get-val vm elem)]]
                 (qb/add-where qb where))
-              (vm/bind! vm elem fq-field :where elems nil))))))))
+              (vm/bind! vm elem fq-field :where elems nil))
+
+            (error! "No matching clause: %s" elem*)))))))
 
 
 (defn ->db-table
