@@ -9,13 +9,17 @@
 
   (where-stack-down [this])
 
-  (add-select [this select])
+  (add-clause [this section clause])
+
+  (add-select [this clause])
 
   (add-with [this clause])
 
-  (add-from [this from])
+  (add-group-by [this clause])
 
-  (add-where [this where])
+  (add-from [this clause])
+
+  (add-where [this clause])
 
   (->map [this])
 
@@ -57,45 +61,54 @@
     (apply update-in data path func args)))
 
 
+(def conj* (fnil conj []))
+
+
 (defrecord QueryBuilder
     [where
      where-path
      sql]
 
-  IQueryBuilder
+    IQueryBuilder
 
-  (where-stack-up [this op]
-    (let [index (count (get-in @where @where-path))]
-      (swap! where update-in* @where-path conj [op])
-      (swap! where-path conj index)))
+    (where-stack-up [this op]
+      (let [index (count (get-in @where @where-path))]
+        (swap! where update-in* @where-path conj* [op])
+        (swap! where-path conj* index)))
 
-  (where-stack-down [this]
-    (swap! where-path (comp vec butlast)))
+    (where-stack-down [this]
+      (swap! where-path (comp vec butlast)))
 
-  (add-with [this clause]
-    (swap! sql update :with conj clause))
+    (add-where [this clause]
+      (swap! where update-in* @where-path conj* clause))
 
-  (add-select [this clause]
-    (swap! sql update :select conj clause))
+    (add-clause [this section clause]
+      (swap! sql update section conj* clause))
 
-  (add-from [this clause]
-    (swap! sql update :from conj clause))
+    (add-with [this clause]
+      (add-clause this :with clause))
 
-  (add-where [this clause]
-    (swap! where update-in* @where-path conj clause))
+    (add-select [this clause]
+      (add-clause this :select clause))
 
-  (->map [this]
-    (assoc @sql :where @where))
+    (add-group-by [this clause]
+      (add-clause this :group-by clause))
 
-  (format [this]
-    (sql/format (->map this))))
+    (add-from [this clause]
+      (add-clause this :from clause))
+
+    (->map [this]
+      (assoc @sql :where @where))
+
+    (format [this]
+      (sql/format (->map this))))
 
 
 (defn builder
   []
   (->QueryBuilder (atom [:and])
                   (atom [])
-                  (atom {:with [] :select [] :from []})))
+                  (atom {})))
 
 
 (def builder? (partial satisfies? IQueryBuilder))

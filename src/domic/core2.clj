@@ -74,7 +74,7 @@
 
 (def q
   '
-  [:find ?e ?a ?b ?c
+  [:find (max ?e) ?a ?b ?c
    :in $ $foo ?name
    :where
    [$ ?e :artist/name ?name]
@@ -151,6 +151,17 @@
   [elem vm qb]
   (let [[tag elem] elem]
     (case tag
+
+      :agg
+      (let [{:keys [name args]} elem
+            call (apply sql/call name
+                        (for [arg args]
+                          (let [[tag arg] arg]
+                            (case tag
+                              :var ;; check if bound
+                              (vm/get-val vm arg)))))]
+        (qb/add-select qb call))
+
       :var
       (if (vm/bound? vm elem)
         (let [val (vm/get-val vm elem)]
