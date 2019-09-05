@@ -1,13 +1,10 @@
 (ns domic.query-builder
-  (:refer-clojure :exclude [format gen-sym])
+  (:refer-clojure :exclude [format])
   (:require
-   [honeysql.core :as sql]
-   [domic.util :refer [sym-generator]]))
+   [honeysql.core :as sql]))
 
 
 (defprotocol IQueryBuilder
-
-  (gen-sym [this] [this prefix])
 
   (where-stack-up [this op])
 
@@ -71,16 +68,9 @@
 (defrecord QueryBuilder
     [where
      where-path
-     sql
-     sym-gen]
+     sql]
 
   IQueryBuilder
-
-  (gen-sym [this]
-    (sym-gen))
-
-  (gen-sym [this prefix]
-    (sym-gen prefix))
 
   (where-stack-up [this op]
     (let [index (count (get-in @where @where-path))]
@@ -119,8 +109,7 @@
   []
   (->QueryBuilder (atom [:and])
                   (atom [])
-                  (atom {})
-                  (sym-generator)))
+                  (atom {})))
 
 
 (def builder? (partial satisfies? IQueryBuilder))

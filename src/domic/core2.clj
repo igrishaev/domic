@@ -4,6 +4,7 @@
    [clojure.string :as str]
    [clojure.spec.alpha :as s]
 
+   [domic.util :refer [sym-generator]]
    [domic.error :refer [error!]]
    [domic.db :as db]
    [domic.var-manager :as vm]
@@ -134,8 +135,174 @@
             (qb/add-where qb where)))))))
 
 
+(defprotocol IDBActions
+
+  (add-pattern [db expression scope]))
+
+
+(extend-protocol IDBActions
+
+  db/DBPG
+
+  (add-pattern [db expression {:keys [qb sg am]}]
+
+    (let [{:keys [elems]} expression
+          [_ A] elems
+          layer (sg "d")
+
+          attr
+          (when A
+            (let [[tag a] A]
+              (case tag
+                :cst
+                (let [[tag a] a]
+                  (case tag
+                    :kw a))
+                nil)))
+
+          type-pg
+          (when attr
+            (am/get-pg-type am attr))]
+
+      (qb/add-from qb [as layer])
+
+      (doseq [[elem* field] (zip elems fields)]
+
+        (let [[tag elem] elem*
+
+              cast
+              (when (and (= field 'v)
+                         (some? type-pg)
+                         (not= type-pg "text"))
+                (format "::%s" type-pg))
+
+              fq-field
+              (sql/raw
+               (format "%s.%s%s" layer field (or cast "")))]
+
+          (case tag
+
+            :blank nil
+
+            :cst
+            (let [[tag v] elem]
+              (let [where [:= fq-field v]]
+                (qb/add-where qb where)))
+
+            :var
+            (if (vm/bound? vm elem)
+              (let [where [:= fq-field (vm/get-val vm elem)]]
+                (qb/add-where qb where))
+              (vm/bind! vm elem fq-field :where elems nil))
+
+            (error! "No matching clause: %s" elem*))))))
+
+  db/DBTable
+
+  (add-pattern [db expression {:keys [qb sg vm]}]
+
+    (let [{:keys [elems]} expression
+          layer (sg "t")]
+
+      (qb/add-from qb [as layer])
+
+      (doseq [[elem* field] (zip elems fields)]
+
+        (let [[tag elem] elem*
+              fq-field (sql/raw (format "%s.%s" layer field))]
+
+          (case tag
+
+            :cst
+            (let [[tag v] elem]
+              (let [where [:= fq-field v]]
+                (qb/add-where qb where)))
+
+            :var
+            (if (vm/bound? vm elem)
+              (let [where [:= fq-field (vm/get-val vm elem)]]
+                (qb/add-where qb where))
+              (vm/bind! vm elem fq-field :where elems nil))
+
+            (error! "No matching clause: %s" elem*))))))
+
+
+
+
+
+
+
+
+  )
+
+
+#_
 (defn add-pattern
   [expression vm qb am dm]
+  (let [{:keys [src-var]} expression
+        db (if src-var
+             (dm/get-db! dm src-var)
+             (dm/default-db! dm))]
+    (db/add-pattern db expression vm qb am)))
+
+
+#_
+(defn add-pattern-table
+  [db expression vm qb am dm sg]
+
+  #_
+  (let [{:keys [elems]} expression
+        layer (sg "t")]
+
+    (qb/add-from qb [as layer])
+
+    (doseq [[elem* field] (zip elems fields)]
+
+      (let [[tag elem] elem*
+            fq-field (sql/raw (format "%s.%s" layer field))]
+
+        (case tag
+
+          :cst
+          (let [[tag v] elem]
+            (let [where [:= fq-field v]]
+              (qb/add-where qb where)))
+
+          :var
+          (if (vm/bound? vm elem)
+            (let [where [:= fq-field (vm/get-val vm elem)]]
+              (qb/add-where qb where))
+            (vm/bind! vm elem fq-field :where elems nil))
+
+          (error! "No matching clause: %s" elem*)))))
+
+
+  )
+
+
+#_
+(defn add-pattern
+  [db expression vm qb am dm]
+
+  (let [{:keys [src-var]} expression
+        db (if src-var
+             (dm/get-db! dm src-var)
+             (dm/default-db! dm))]
+
+    (cond
+
+      ;; (db/db-pg? db)
+      ;; (add-pattern-pg expression db vm qb am dm)
+
+      (db/db-table? db)
+      (add-pattern-table expression db vm qb am dm)
+
+      :else
+      (error! "dunno")))
+
+
+  #_
+
   (let [{:keys [src-var]} expression
         db (if src-var
              (dm/get-db! dm src-var)
@@ -158,9 +325,9 @@
 
 
 (defn add-find-elem
-  [find-elem* vm qb]
+  [find-elem* {:keys [vm qb sg]}]
   (let [[tag find-elem] find-elem*
-        alias (qb/gen-sym qb "f")]
+        alias (sg "f")]
 
     (case tag
 
@@ -217,7 +384,7 @@
 
 
 (defn process-in
-  [inputs vm qb dm params]
+  [inputs {:keys [vm qb dm sg]} params]
 
   (when-not (= (count inputs) (count params))
     (error! "The number of inputs != the number of parameters"))
@@ -227,8 +394,8 @@
       (case tag
 
         :src-var
-        (let [db (db/->db param)]
-          (db/db-init db qb)
+        (let [db (db/->db param qb)]
+          ;; (db/db-init db qb)
           (dm/add-db dm input db))
 
         :binding
@@ -237,8 +404,8 @@
 
             :bind-rel
             (let [[input] input
-                  fields (for [_ input] (qb/gen-sym qb "f"))
-                  as (qb/gen-sym qb "coll")
+                  fields (for [_ input] (sg "f"))
+                  as (sg "coll")
                   alias (sql/raw (format "%s (%s)" as (join fields)))
                   from [{:values param} alias]]
 
@@ -253,8 +420,8 @@
 
             :bind-coll
             (let [{:keys [var]} input
-                  as (qb/gen-sym qb "coll")
-                  field (qb/gen-sym qb "f")
+                  as (sg "coll")
+                  field (sg "f")
                   values {:values (mapv vector param)}
                   alias (sql/raw (format "%s (%s)" as field))
                   from [values alias]]
@@ -278,7 +445,7 @@
 
 
 (defn process-where
-  [clauses vm qb am dm]
+  [clauses {:as scope :keys [vm qb am dm]}]
   (doseq [clause clauses]
     (let [[tag clause] clause]
       (case tag
@@ -325,19 +492,21 @@
                 :db/valueType   :db.type/integer
                 :db/cardinality :db.cardinality/one}]
 
+        sg (sym-generator)
         am (am/manager attrs)
         vm (vm/manager)
         qb (qb/builder)
         dm (dm/manager)
 
-        {:keys [find in where]} query-parsed
+        scope {:sg sg :am am :vm vm :qb qb :dm dm}
 
+        {:keys [find in where]} query-parsed
         {:keys [inputs]} in
         {:keys [spec]} find
         {:keys [clauses]} where]
 
-    (process-in inputs vm qb dm query-inputs)
-    (process-where clauses vm qb am dm)
-    (process-find spec vm qb)
+    (process-in inputs scope query-inputs)
+    (process-where clauses scope)
+    (process-find spec scope)
 
     (qb/format qb)))
