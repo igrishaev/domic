@@ -11,6 +11,7 @@
             [domic.db-manager :as dm]
             [domic.util :refer [join zip]]
             [domic.db :as db]
+            [domic.engine :as en]
 
             [honeysql.core :as sql]
             [datomic-spec.core :as ds])
@@ -30,12 +31,20 @@
 
 (def q
   '
-  [:find ?e
+  [:find ?e ?name ?y
    :in $ ?name
    :where
-   [$ ?e :artist/name ?name]])
+   [$ ?e :artist/name ?name]
+   [$ ?r :release/artist ?e]
+   [$ ?r :release/year ?y]
+   ;; (not)
+
+   [$ ?r :release/year 1985]
+
+   ])
 
 
+#_
 (def q
   '
   [:find (max ?e) ?a ?b ?c
@@ -117,7 +126,7 @@
 
               fq-field
               (cond-> (sql/qualify layer field)
-                (and pg-type (not= pg-type :text))
+                (and (= field 'v) pg-type (not= pg-type :text))
                 (cast pg-type))]
 
           (case tag
@@ -126,11 +135,8 @@
 
             :cst
             (let [[tag v] elem]
-              (let [param (sg "?param")
-
-                    where
-                    [:= fq-field (sql/param param)]]
-
+              (let [param (sg "?")
+                    where [:= fq-field (sql/param param)]]
                 (qb/add-param qb param v)
                 (qb/add-where qb where)))
 
@@ -386,6 +392,14 @@
                 :db/valueType   :db.type/integer
                 :db/cardinality :db.cardinality/one}]
 
+        db-spec {:dbtype "postgresql"
+                 :dbname "test"
+                 :host "127.0.0.1"
+                 :user "ivan"
+                 :password "ivan"}
+
+        en (en/engine db-spec)
+
         sg (sym-generator)
         am (am/manager attrs)
         vm (vm/manager)
@@ -403,4 +417,10 @@
     (process-where scope clauses)
     (process-find scope spec)
 
-    (qb/format qb)))
+    (clojure.pprint/pprint (qb/->map qb))
+
+    (clojure.pprint/pprint (qb/format qb))
+
+    (en/query en (qb/format qb))
+
+    ))
