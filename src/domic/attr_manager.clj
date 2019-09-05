@@ -25,6 +25,6 @@
 
       (get-pg-type [this attr]
         (case (get-db-type this attr)
-          :db.type/string  "text"
-          :db.type/ref     "integer"
-          :db.type/integer "integer")))))
+          :db.type/string  :text
+          :db.type/ref     :integer
+          :db.type/integer :integer)))))

@@ -22,6 +22,8 @@
 
   (add-where [this clause])
 
+  (add-param [this param value])
+
   (->map [this])
 
   (format [this]))
@@ -68,7 +70,8 @@
 (defrecord QueryBuilder
     [where
      where-path
-     sql]
+     sql
+     params]
 
   IQueryBuilder
 
@@ -98,17 +101,22 @@
   (add-from [this clause]
     (add-clause this :from clause))
 
+  (add-param [this param value]
+    (swap! params assoc param value))
+
   (->map [this]
     (assoc @sql :where @where))
 
   (format [this]
-    (sql/format (->map this))))
+    (sql/format (->map this)
+                @params)))
 
 
 (defn builder
   []
   (->QueryBuilder (atom [:and])
                   (atom [])
+                  (atom {})
                   (atom {})))
 
 

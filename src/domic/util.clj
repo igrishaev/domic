@@ -20,4 +20,4 @@
       (let [prefix (or prefix "_")
             state* (swap! state update prefix inc*)
             num (get state* prefix)]
-        (symbol (str prefix num))))))
+        (keyword (str prefix num))))))

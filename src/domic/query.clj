@@ -13,13 +13,10 @@
             [domic.db :as db]
 
             [honeysql.core :as sql]
-            [datomic-spec.core :as ds]
+            [datomic-spec.core :as ds])
 
-            )
+  (:import [domic.db DBPG DBTable]))
 
-  (:import [domic.db DBPG DBTable])
-
-  )
 
 
 (def table
@@ -50,6 +47,28 @@
 
 (def parsed
   (s/conform ::ds/query q))
+
+
+(defprotocol ICOnversion
+
+  (->db-param [this]))
+
+
+#_
+(extend-protocol ICOnversion
+
+  clojure.lang.Keyword
+
+  (->db-param [this]
+
+    )
+
+
+
+
+  )
+
+
 
 
 (defprotocol IDBActions
@@ -84,7 +103,7 @@
                     :kw a))
                 nil)))
 
-          type-pg
+          pg-type
           (when attr
             (am/get-pg-type am attr))]
 
@@ -94,15 +113,12 @@
 
         (let [[tag elem] elem*
 
-              cast
-              (when (and (= field 'v)
-                         (some? type-pg)
-                         (not= type-pg "text"))
-                (format "::%s" type-pg))
+              cast (partial sql/call :cast)
 
               fq-field
-              (sql/raw
-               (format "%s.%s%s" layer field (or cast "")))]
+              (cond-> (sql/qualify layer field)
+                (and pg-type (not= pg-type :text))
+                (cast pg-type))]
 
           (case tag
 
@@ -110,7 +126,12 @@
 
             :cst
             (let [[tag v] elem]
-              (let [where [:= fq-field v]]
+              (let [param (sg "?param")
+
+                    where
+                    [:= fq-field (sql/param param)]]
+
+                (qb/add-param qb param v)
                 (qb/add-where qb where)))
 
             :var
@@ -138,7 +159,9 @@
       (doseq [[elem* field] (zip elems fields)]
 
         (let [[tag elem] elem*
-              fq-field (sql/raw (format "%s.%s" layer field))]
+
+              fq-field
+              (sql/qualify layer field)]
 
           (case tag
 
@@ -174,9 +197,11 @@
   [{:as scope :keys [vm qb dm sg]}
    inputs params]
 
-  (when-not (= (count inputs) (count params))
-    (error! "Arity mismatch: %s input(s) and %s param(s)"
-            (count inputs) (count params)))
+  (let [n-inputs (count inputs)
+        n-params (count params)]
+    (when-not (= n-inputs n-params)
+      (error! "Arity mismatch: %s input(s) and %s param(s)"
+              n-inputs n-params)))
 
   (doseq [[input-src param] (zip inputs params)]
     (let [[tag input] input-src]
@@ -193,11 +218,8 @@
 
             :bind-rel
             (let [arity (-> input first count)
-                  fields (for [_ (first input)]
-                           (sg "f"))
-                  as (sg "coll")
-                  alias (sql/raw
-                         (format "%s (%s)" as (join fields)))
+                  fields (for [_ (first input)] (sg "f"))
+                  alias [(sg "coll") (sql/raw (format "(%s)" (join fields)))]
                   from [{:values param} alias]]
 
               (qb/add-from qb from)
