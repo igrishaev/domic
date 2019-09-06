@@ -5,15 +5,9 @@
 
 (defprotocol IVarManager
 
-  (gen-prefix [this])
+  (bind! [this var val])
 
-  (getter [this var field])
-
-  (get-form [this var])
-
-  (bind! [this var val src form type])
-
-  (bind [this var val src form type])
+  (bind [this var val])
 
   (bound? [this var])
 
@@ -27,34 +21,20 @@
 
   IVarManager
 
-  (getter [this var field]
-    (get-in @vars [var field]))
-
-  (get-form [this var]
-    (getter this var :form))
-
   (get-val [this var]
-    (getter this var :val))
+    (get @vars var))
 
   (get-val! [this var]
     (or (get-val this var)
         (error! "Var %s is unbound" var)))
 
-  (gen-prefix [this]
-    (str (gensym "d")))
-
-  (bind! [this var val src form type]
+  (bind! [this var val]
     (if (bound? this var)
-      (error! "Var %s is already bound: %s"
-              var (get-form this var))
-      (bind this var val src form type)))
+      (error! "Var %s is already bound" var)
+      (bind this var val)))
 
-  (bind [this var val src form type]
-    (swap! vars assoc var
-           {:val val
-            :src src
-            :form form
-            :type type}))
+  (bind [this var val]
+    (swap! vars assoc var val))
 
   (bound? [this var]
     (contains? @vars var)))

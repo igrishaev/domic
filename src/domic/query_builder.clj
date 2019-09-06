@@ -22,11 +22,9 @@
 
   (add-where [this clause])
 
-  (add-param [this param value])
-
   (->map [this])
 
-  (format [this]))
+  (format [this] [this params]))
 
 
 (defmacro with-where [qb op & body]
@@ -46,15 +44,15 @@
 (defmacro with-where-or [qb & body]
   `(with-where ~qb :or ~@body))
 
-(defmacro with-where-not-and [qb & body]
-  `(with-where-not ~qb
-     (with-where-and ~qb
-       ~@body)))
+;; (defmacro with-where-not-and [qb & body]
+;;   `(with-where-not ~qb
+;;      (with-where-and ~qb
+;;        ~@body)))
 
-(defmacro with-where-not-or [qb & body]
-  `(with-where-not ~qb
-     (with-where-or ~qb
-       ~@body)))
+;; (defmacro with-where-not-or [qb & body]
+;;   `(with-where-not ~qb
+;;      (with-where-or ~qb
+;;        ~@body)))
 
 
 (defn update-in*
@@ -66,59 +64,59 @@
 
 (def conj* (fnil conj []))
 
+(def WHERE-EMPTY [:and])
+
 
 (defrecord QueryBuilder
     [where
      where-path
-     sql
-     params]
+     sql]
 
-  IQueryBuilder
+    IQueryBuilder
 
-  (where-stack-up [this op]
-    (let [index (count (get-in @where @where-path))]
-      (swap! where update-in* @where-path conj* [op])
-      (swap! where-path conj* index)))
+    (where-stack-up [this op]
+      (let [index (count (get-in @where @where-path))]
+        (swap! where update-in* @where-path conj* [op])
+        (swap! where-path conj* index)))
 
-  (where-stack-down [this]
-    (swap! where-path (comp vec butlast)))
+    (where-stack-down [this]
+      (swap! where-path (comp vec butlast)))
 
-  (add-where [this clause]
-    (swap! where update-in* @where-path conj* clause))
+    (add-where [this clause]
+      (swap! where update-in* @where-path conj* clause))
 
-  (add-clause [this section clause]
-    (swap! sql update section conj* clause))
+    (add-clause [this section clause]
+      (swap! sql update section conj* clause))
 
-  (add-with [this clause]
-    (add-clause this :with clause))
+    (add-with [this clause]
+      (add-clause this :with clause))
 
-  (add-select [this clause]
-    (add-clause this :select clause))
+    (add-select [this clause]
+      (add-clause this :select clause))
 
-  (add-group-by [this clause]
-    (add-clause this :group-by clause))
+    (add-group-by [this clause]
+      (add-clause this :group-by clause))
 
-  (add-from [this clause]
-    (add-clause this :from clause))
+    (add-from [this clause]
+      (add-clause this :from clause))
 
-  (add-param [this param value]
-    (swap! params assoc param value))
+    (->map [this]
+      (let [where* @where]
+        (cond-> @sql
+          (not= where* WHERE-EMPTY)
+          (assoc :where where*))))
 
-  (->map [this]
-    (assoc @sql :where @where))
+    (format [this]
+      (format this nil))
 
-  (format [this]
-    (sql/format (->map this)
-
-                #_
-                @params)))
+    (format [this params]
+      (sql/format (->map this) params)))
 
 
 (defn builder
   []
-  (->QueryBuilder (atom [:and])
+  (->QueryBuilder (atom WHERE-EMPTY)
                   (atom [])
-                  (atom {})
                   (atom {})))
 
 
