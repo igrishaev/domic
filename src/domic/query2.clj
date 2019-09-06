@@ -47,8 +47,9 @@
    :in $ ?name
    :where
    [$ ?e :artist/name ?name]
-   [$ ?r :release/artist ?e]
-   [$ ?r :release/year ?y]
+   ;; [$ ?r :release/artist ?e]
+   ;; [$ ?r :release/year ?y]
+   #_
    (or
     [$ ?r :release/year 1985]
     [$ ?r :release/year 1986])])
@@ -56,27 +57,25 @@
 
 (def q
   '
-  [:find ?e ?name ?y
+  [:find ?e ?name
    :in $ ?name
    :where
    [$ ?e :artist/name _]
    [$ ?r :release/artist ?e]
-   [$ ?r :release/year ?y]
+   [$ ?r :release/year 1985]
+
+   ;; [$ ?e :artist/name _]
+   ;; [$ ?r :release/artist ?e]
+   ;; [$ ?r :release/year 1988]
+
+
+   #_
+
    (or
     [$ ?r :release/year 1985]
     [$ ?r :release/year 1986]
 
     )])
-
-
-#_
-(def q
-  '
-  [:find (max ?e) ?a ?b ?c
-   :in $ $foo ?name
-   :where
-   [$ ?e :artist/name ?name]
-   [$foo ?a ?b ?c]])
 
 
 (def parsed
@@ -475,9 +474,60 @@
 
     (let [params (qp/get-params qp)
           [query & args] (qb/format qb params)
+          ;; query (str "explain analyze " query)
           pg-args (mapv en/->pg args)]
       (en/query en (into [query] pg-args)))
 
     ;; (en/query en (qb/format qb))
 
     ))
+
+
+
+(defn gen-data
+  []
+
+  (let [artist-ids [1 2 3 4 5]
+        artist-names ["Queen" "Abba" "Beatles" "Pink Floyd" "Korn"]
+        release-range (range 1 999)
+        year-range (range 1970 1999)
+
+        db {:dbtype "postgresql"
+            :dbname "test"
+            :host "127.0.0.1"
+            :user "ivan"
+            :password "ivan"}
+
+
+        ]
+
+    #_
+    (doseq [artist-id artist-ids]
+
+      (let [artist-name (get artist-names (dec artist-id))]
+
+        (clojure.java.jdbc/insert! db :datoms3 {:e (en/->pg artist-id)
+                                                :a (en/->pg :artist/name)
+                                                :v (en/->pg artist-name)
+                                                :t (en/->pg 42)})))
+
+    (doseq [release-id (range 10000 20000)]
+
+      (let [release-artist (rand-nth artist-ids)
+            release-year (rand-nth year-range)]
+
+        (clojure.java.jdbc/insert! db :datoms3 {:e (en/->pg release-id)
+                                                :a (en/->pg :release/artist)
+                                                :v (en/->pg release-artist)
+                                                :t (en/->pg 42)})
+
+        (clojure.java.jdbc/insert! db :datoms3 {:e (en/->pg release-id)
+                                                :a (en/->pg :release/year)
+                                                :v (en/->pg release-year)
+                                                :t (en/->pg 42)})))
+
+
+
+    )
+
+  )
