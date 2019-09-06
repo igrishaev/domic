@@ -37,9 +37,8 @@
    [$ ?e :artist/name ?name]
    [$ ?r :release/artist ?e]
    [$ ?r :release/year ?y]
-   ;; (not)
-
-   [$ ?r :release/year 1985]
+   (not
+    [$ ?r :release/year 1985])
 
    ])
 
@@ -135,9 +134,16 @@
 
             :cst
             (let [[tag v] elem]
-              (let [param (sg "?")
-                    where [:= fq-field (sql/param param)]]
-                (qb/add-param qb param v)
+              (let [;; param (sg "?")
+                    where [:= fq-field v
+
+                           #_
+                           param
+
+                           #_
+                           (sql/param param)
+                           ]]
+                ;; (qb/add-param qb param v)
                 (qb/add-where qb where)))
 
             :var
@@ -306,13 +312,22 @@
                     (add-clause scope clause)))))))
 
         :not-clause
-        (qb/with-where-not-and qb
+        (let [qb* (qb/builder)
+              scope* (assoc scope :qb qb*)]
+
           (let [{:keys [clauses]} clause]
             (doseq [clause clauses]
               (let [[tag clause] clause]
                 (case tag
                   :expression-clause
-                  (add-clause scope clause))))))
+                  (add-clause scope* clause)))))
+
+          (qb/add-select qb* (sql/inline 1))
+
+          (clojure.pprint/pprint (-> scope :vm :vars deref))
+
+          (qb/add-where qb [:not {:exists (qb/->map qb*)}]))
+
 
         :expression-clause
         (add-clause scope clause)))))

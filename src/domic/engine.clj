@@ -55,11 +55,11 @@
 
 
 
-
-
-#_
 (extend-protocol jdbc/IResultSetReadColumn
 
   PGobject
   (result-set-read-column [pgobj metadata index]
-    (pgobject-> pgobj)))
+    (case (.getType pgobj)
+      ("json" "jsonb")
+      (-> (.getValue pgobj)
+          (json/parse-string true)))))

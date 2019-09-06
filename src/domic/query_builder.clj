@@ -109,6 +109,8 @@
 
   (format [this]
     (sql/format (->map this)
+
+                #_
                 @params)))
 
 

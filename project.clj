@@ -12,6 +12,8 @@
                  [org.clojure/java.jdbc "0.7.8"]
                  [org.postgresql/postgresql "42.1.3"]
 
+                 [cheshire "5.6.3"]
+
                  [org.clojars.akiel/datomic-spec "0.5.2"]
 
                  [com.datomic/datomic-pro "0.9.5561.50"]
