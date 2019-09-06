@@ -59,13 +59,12 @@
   [:find ?e ?name ?y
    :in $ ?name
    :where
-   [$ ?e :artist/name ?name]
+   [$ ?e :artist/name _]
    [$ ?r :release/artist ?e]
    [$ ?r :release/year ?y]
    (or
     [$ ?r :release/year 1985]
-    (not
-     [$ ?r :release/year 1986])
+    [$ ?r :release/year 1986]
 
     )])
 
@@ -113,6 +112,8 @@
               fq-field (sql/qualify layer field)]
 
           (case tag
+
+            :blank nil
 
             :cst
             (let [[tag value] elem]
@@ -310,8 +311,6 @@
 (defn add-clause
   [scope clause]
 
-  (println "------" clause)
-
   (let [[tag expression] clause]
 
 
@@ -429,7 +428,9 @@
           :rel find-spec)
 
         aggs? (map find-elem-agg? find-elem-list)
-        group? (some identity aggs?)]
+        group? (some identity aggs?)
+
+        ]
 
     (doseq [[find-elem agg?] (zip find-elem-list aggs?)]
       (let [alias (add-find-elem scope find-elem)]
@@ -463,10 +464,19 @@
 
     (process-in scope inputs query-inputs)
     (process-where scope clauses)
-    ;; (process-find scope spec)
+    (process-find scope spec)
 
     (clojure.pprint/pprint (qb/->map qb))
+
+    #_
     (clojure.pprint/pprint (qb/format qb (qp/get-params qp)))
+
+    (qb/set-distinct qb)
+
+    (let [params (qp/get-params qp)
+          [query & args] (qb/format qb params)
+          pg-args (mapv en/->pg args)]
+      (en/query en (into [query] pg-args)))
 
     ;; (en/query en (qb/format qb))
 

@@ -6,6 +6,8 @@
 
 (defprotocol IQueryBuilder
 
+  (set-distinct [this])
+
   (where-stack-up [this op])
 
   (where-stack-down [this])
@@ -72,45 +74,48 @@
      where-path
      sql]
 
-    IQueryBuilder
+  IQueryBuilder
 
-    (where-stack-up [this op]
-      (let [index (count (get-in @where @where-path))]
-        (swap! where update-in* @where-path conj* [op])
-        (swap! where-path conj* index)))
+  (set-distinct [this]
+    (swap! sql update :modifiers conj* :distinct))
 
-    (where-stack-down [this]
-      (swap! where-path (comp vec butlast)))
+  (where-stack-up [this op]
+    (let [index (count (get-in @where @where-path))]
+      (swap! where update-in* @where-path conj* [op])
+      (swap! where-path conj* index)))
 
-    (add-where [this clause]
-      (swap! where update-in* @where-path conj* clause))
+  (where-stack-down [this]
+    (swap! where-path (comp vec butlast)))
 
-    (add-clause [this section clause]
-      (swap! sql update section conj* clause))
+  (add-where [this clause]
+    (swap! where update-in* @where-path conj* clause))
 
-    (add-with [this clause]
-      (add-clause this :with clause))
+  (add-clause [this section clause]
+    (swap! sql update section conj* clause))
 
-    (add-select [this clause]
-      (add-clause this :select clause))
+  (add-with [this clause]
+    (add-clause this :with clause))
 
-    (add-group-by [this clause]
-      (add-clause this :group-by clause))
+  (add-select [this clause]
+    (add-clause this :select clause))
 
-    (add-from [this clause]
-      (add-clause this :from clause))
+  (add-group-by [this clause]
+    (add-clause this :group-by clause))
 
-    (->map [this]
-      (let [where* @where]
-        (cond-> @sql
-          (not= where* WHERE-EMPTY)
-          (assoc :where where*))))
+  (add-from [this clause]
+    (add-clause this :from clause))
 
-    (format [this]
-      (format this nil))
+  (->map [this]
+    (let [where* @where]
+      (cond-> @sql
+        (not= where* WHERE-EMPTY)
+        (assoc :where where*))))
 
-    (format [this params]
-      (sql/format (->map this) params)))
+  (format [this]
+    (format this nil))
+
+  (format [this params]
+    (sql/format (->map this) params)))
 
 
 (defn builder

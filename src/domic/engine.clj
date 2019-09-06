@@ -32,6 +32,7 @@
     (.setValue value)))
 
 
+#_
 (extend-protocol jdbc/ISQLValue
 
   Symbol
@@ -63,3 +64,10 @@
       ("json" "jsonb")
       (-> (.getValue pgobj)
           (json/parse-string true)))))
+
+
+(defn ->pg
+  [value]
+  (doto (PGobject.)
+    (.setType "jsonb")
+    (.setValue (json/generate-string value))))
