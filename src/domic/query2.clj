@@ -11,6 +11,7 @@
             [domic.util :refer [join zip]]
             [domic.db :as db]
             [domic.query-params :as qp]
+            [domic.attr-manager :as am]
             [domic.engine :as en]
 
             [honeysql.core :as sql]
@@ -35,6 +36,7 @@
    :in $ ?name
    :where
    [$ ?e :artist/name ?name]
+
    [$ ?r :release/artist ?e]
    [$ ?r :release/year ?y]
    (not
@@ -43,7 +45,7 @@
 
 (def q
   '
-  [:find ?e ?name ?y
+  [:find ?name ?y
    :in $ ?name
    :where
    [$ ?e :artist/name ?name]
@@ -57,12 +59,26 @@
 
 (def q
   '
-  [:find ?e ?name
-   :in $ ?name
+  [:find ?name (min ?y) (max ?y)
+   :in $ ?n1 ?n2
    :where
-   [$ ?e :artist/name _]
+
+   [$ ?e :artist/name ?name]
+
+   #_
+   (or [$ ?e :artist/name "Queen222"]
+       [$ ?e :artist/name "Abba"])
+
+   [(in ?name ?n1 ?n2)]
+
+   ;; [$ ?e :artist/name ?name]
+   ;; (not [(= ?e 2)])
+
    [$ ?r :release/artist ?e]
-   [$ ?r :release/year 1985]
+   [$ ?r :release/year ?y]
+
+   #_
+   (not [$ ?r :release/year 1985])
 
    ;; [$ ?e :artist/name _]
    ;; [$ ?r :release/artist ?e]
@@ -98,36 +114,50 @@
   (add-pattern-db [db scope expression]
 
     (let [{:keys [alias fields]} db
-          {:keys [qb sg vm qp]} scope
+          {:keys [qb sg vm qp am]} scope
           {:keys [elems]} expression
           layer (sg "d")]
 
       (qb/add-from qb [alias layer])
 
-      (doseq [[elem* field] (zip elems fields)]
+      (with-local-vars [attr nil]
 
-        (let [[tag elem] elem*
+        (doseq [[elem* field] (zip elems fields)]
 
-              fq-field (sql/qualify layer field)]
+          (let [[tag elem] elem*
 
-          (case tag
+                fq-field (sql/qualify layer field)
 
-            :blank nil
+                pg-type (when (= field 'v)
+                          (when-let [attr @attr]
+                            (am/get-pg-type am attr)))
 
-            :cst
-            (let [[tag value] elem]
-              (let [_a (sg (str field))
-                    _p (sql/param _a)
-                    where [:= fq-field _p]]
-                (qp/add-param qp _a value)
-                (qb/add-where qb where)))
+                fq-field (if (and pg-type (not= pg-type :text))
+                           (sql/call :cast fq-field pg-type)
+                           fq-field)]
 
-            :var
-            (if (vm/bound? vm elem)
-              (let [_v (vm/get-val vm elem)
-                    where [:= fq-field _v]]
-                (qb/add-where qb where))
-              (vm/bind! vm elem fq-field))))))
+            (case tag
+
+              :blank nil
+
+              :cst
+              (let [[tag value] elem]
+
+                (when (= field 'a)
+                  (var-set attr value))
+
+                (let [_a (sg (str field))
+                      _p (sql/param _a)
+                      where [:= fq-field _p]]
+                  (qp/add-param qp _a value)
+                  (qb/add-where qb where)))
+
+              :var
+              (if (vm/bound? vm elem)
+                (let [_v (vm/get-val vm elem)
+                      where [:= fq-field _v]]
+                  (qb/add-where qb where))
+                (vm/bind! vm elem fq-field)))))))
 
 
     #_
@@ -307,6 +337,59 @@
     (add-pattern-db db scope expression)))
 
 
+(defn add-predicate
+  [scope expression]
+  (let [{:keys [qb vm sg qp]} scope
+        {:keys [expr]} expression
+        {:keys [pred args]} expr
+
+        [arg1 arg2] args
+
+        [pred-tag pred] pred
+
+        args* (for [arg args]
+                (let [[tag arg] arg]
+                  (case tag
+                    :var
+                    (if (vm/bound? vm arg)
+                      (vm/get-val! vm arg)
+                      (throw (new Exception "AAA")))
+
+                    :cst
+                    (let [[tag arg] arg]
+                      (let [param (sg "param")]
+                        (qp/add-param qp param arg)
+                        (sql/param param))))))]
+
+
+    (case pred-tag
+      :sym
+      (qb/add-where qb [pred (first args*) (rest args*)])
+      #_
+      (qb/add-where qb (into [pred] args*))
+
+
+
+
+
+
+
+      )
+
+
+
+
+
+
+    )
+
+
+
+
+
+  )
+
+
 (defn add-clause
   [scope clause]
 
@@ -317,8 +400,8 @@
 
       ;; :fn-expr
 
-      ;; :pred-expr
-      ;; (add-predicate scope expression)
+      :pred-expr
+      (add-predicate scope expression)
 
       :data-pattern
       (add-pattern scope expression))))
@@ -437,6 +520,20 @@
           (qb/add-group-by qb alias))))))
 
 
+(def attrs
+  [{:db/ident       :artist/name
+    :db/valueType   :db.type/string
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :release/artist
+    :db/valueType   :db.type/ref
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :release/year
+    :db/valueType   :db.type/integer
+    :db/cardinality :db.cardinality/one}])
+
+
 (defn aaa
   [query-parsed & query-inputs]
 
@@ -453,8 +550,9 @@
         qb (qb/builder)
         qp (qp/params)
         dm (dm/manager)
+        am (am/manager attrs)
 
-        scope {:sg sg :vm vm :qb qb :dm dm :qp qp}
+        scope {:sg sg :vm vm :qb qb :dm dm :qp qp :am am}
 
         {:keys [find in where]} query-parsed
         {:keys [inputs]} in
@@ -467,7 +565,6 @@
 
     (clojure.pprint/pprint (qb/->map qb))
 
-    #_
     (clojure.pprint/pprint (qb/format qb (qp/get-params qp)))
 
     (qb/set-distinct qb)
@@ -475,8 +572,9 @@
     (let [params (qp/get-params qp)
           [query & args] (qb/format qb params)
           ;; query (str "explain analyze " query)
-          pg-args (mapv en/->pg args)]
-      (en/query en (into [query] pg-args)))
+          ;; pg-args (mapv en/->pg args)
+          ]
+      (en/query en (into [query] args)))
 
     ;; (en/query en (qb/format qb))
 
@@ -501,30 +599,28 @@
 
         ]
 
-    #_
     (doseq [artist-id artist-ids]
 
       (let [artist-name (get artist-names (dec artist-id))]
 
-        (clojure.java.jdbc/insert! db :datoms3 {:e (en/->pg artist-id)
-                                                :a (en/->pg :artist/name)
-                                                :v (en/->pg artist-name)
-                                                :t (en/->pg 42)})))
-
-    (doseq [release-id (range 10000 20000)]
+        (clojure.java.jdbc/insert! db :datoms4 {:e (do artist-id)
+                                                :a (do :artist/name)
+                                                :v (do artist-name)
+                                                :t (do 42)})))
+    (doseq [release-id (range 1 2000)]
 
       (let [release-artist (rand-nth artist-ids)
             release-year (rand-nth year-range)]
 
-        (clojure.java.jdbc/insert! db :datoms3 {:e (en/->pg release-id)
-                                                :a (en/->pg :release/artist)
-                                                :v (en/->pg release-artist)
-                                                :t (en/->pg 42)})
+        (clojure.java.jdbc/insert! db :datoms4 {:e (do release-id)
+                                                :a (do :release/artist)
+                                                :v (do release-artist)
+                                                :t (do 42)})
 
-        (clojure.java.jdbc/insert! db :datoms3 {:e (en/->pg release-id)
-                                                :a (en/->pg :release/year)
-                                                :v (en/->pg release-year)
-                                                :t (en/->pg 42)})))
+        (clojure.java.jdbc/insert! db :datoms4 {:e (do release-id)
+                                                :a (do :release/year)
+                                                :v (do release-year)
+                                                :t (do 42)})))
 
 
 

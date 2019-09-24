@@ -56,6 +56,7 @@
 
 
 
+#_
 (extend-protocol jdbc/IResultSetReadColumn
 
   PGobject
@@ -66,6 +67,7 @@
           (json/parse-string true)))))
 
 
+#_
 (defn ->pg
   [value]
   (doto (PGobject.)

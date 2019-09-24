@@ -122,7 +122,7 @@
   []
   (->QueryBuilder (atom WHERE-EMPTY)
                   (atom [])
-                  (atom {})))
+                  (atom {:modifiers [:distinct]})))
 
 
 (def builder? (partial satisfies? IQueryBuilder))
