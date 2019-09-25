@@ -94,6 +94,16 @@
     )])
 
 
+(def q
+  '
+  [:find ?name ?a
+   :in $
+   :where
+   [$ ?r :release/year 1985]
+   [$ ?r :release/artist ?a]
+   [$ ?a :artist/name ?name]])
+
+
 (def parsed
   (s/conform ::ds/query q))
 
@@ -531,7 +541,70 @@
 
    {:db/ident       :release/year
     :db/valueType   :db.type/integer
-    :db/cardinality :db.cardinality/one}])
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :release/tag
+    :db/valueType   :db.type/string
+    :db/cardinality :db.cardinality/many}])
+
+
+
+(require '[clojure.java.jdbc :as jdbc])
+
+(def db {:dbtype "postgresql"
+         :dbname "test"
+         :host "127.0.0.1"
+         :user "ivan"
+         :password "ivan"}
+  )
+
+
+(defn transact [maps]
+
+  (jdbc/with-db-transaction [tx db]
+
+    (doseq [map maps]
+
+      (let [new? true
+            e 43
+            t 100
+            ]
+        (if new?
+          (jdbc/insert-multi! tx
+                              :datoms4
+                              (for [[key value] map]
+                                {:e e :a key :v value :t t}))
+
+          (doseq [[key value] map]
+
+            (let [singular? true]
+
+              (if singular?
+
+                (jdbc/delete! tx
+                              :datoms4
+                              []
+
+
+
+                              (for [[key value] map]
+                                {:e e :a key :v value :t t}))))
+
+
+            )
+
+          ))
+
+
+
+
+      )
+
+    )
+
+
+
+  )
 
 
 (defn aaa
@@ -563,22 +636,106 @@
     (process-where scope clauses)
     (process-find scope spec)
 
+    (qb/set-distinct qb)
+
     (clojure.pprint/pprint (qb/->map qb))
 
-    (clojure.pprint/pprint (qb/format qb (qp/get-params qp)))
+    (println (qp/get-params qp))
 
-    (qb/set-distinct qb)
+    (clojure.pprint/pprint (qb/format qb (qp/get-params qp)))
 
     (let [params (qp/get-params qp)
           [query & args] (qb/format qb params)
           ;; query (str "explain analyze " query)
           ;; pg-args (mapv en/->pg args)
           ]
-      (en/query en (into [query] args)))
+      (en/query en (into [query] args) {:as-arrays? true}))
 
     ;; (en/query en (qb/format qb))
 
     ))
+
+
+(defn pull [pattern e]
+
+  (let [qb (qb/builder)
+        sg (sym-generator)
+
+        am (am/manager attrs)
+
+        qp (qp/params)
+
+        en (en/engine db)
+
+        scope {:qb qb :sg sg :qp qp}
+
+        alias-with (sg "sub")
+
+        aaa (qb/builder)
+
+        attrs [:release/year
+               :release/artist
+               :release/tag]]
+
+
+    (qb/add-select aaa :*)
+    (qb/add-from aaa :datoms4)
+    (qb/add-where aaa [:= :e e])
+
+    (qb/add-with qb [alias-with (qb/->map aaa)])
+
+    (doseq [attr attrs]
+
+
+
+      (let [sub (qb/builder)
+
+            multiple? (am/multiple? am attr)
+
+            _a (sg "param")
+            ;; param (sql/param attr)
+
+            param2 (sql/param _a)
+
+
+            pg-type (am/get-pg-type am attr)
+
+            ]
+
+        ;; (qp/add-param qp _a attr)
+        (qp/add-param qp _a attr)
+
+        (qb/add-from sub alias-with)
+
+        (qb/add-select sub (sql/call :cast :v (sql/inline pg-type)))
+        (qb/add-where sub [:= :a param2])
+        (qb/add-select
+         qb
+
+         (if multiple?
+           [(sql/call :array (qb/->map sub)) attr]
+           [(qb/->map sub) attr])
+
+         #_
+         [(qb/->map sub) param2])))
+
+    (println (qp/get-params qp))
+
+    (clojure.pprint/pprint (qb/->map qb))
+
+    (println (qb/format qb (qp/get-params qp)))
+
+    (let [params (qp/get-params qp)
+          [query & args] (qb/format qb params)]
+      (en/query en (into [query] args)))
+
+
+
+
+
+    )
+
+  )
 
 
 

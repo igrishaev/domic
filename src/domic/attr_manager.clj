@@ -3,6 +3,8 @@
 
 (defprotocol IAttrManager
 
+  (multiple? [this attr])
+
   (get-db-type [this attr])
 
   (get-pg-type [this attr]))
@@ -19,6 +21,12 @@
         attrs (atom grouped)]
 
     (reify IAttrManager
+
+      (multiple? [this attr]
+        (some-> @attrs
+                (get attr)
+                :db/cardinality
+                (= :db.cardinality/many)))
 
       (get-db-type [this attr]
         (get-in @attrs [attr :db/valueType]))

@@ -115,14 +115,20 @@
     (format this nil))
 
   (format [this params]
-    (sql/format (->map this) params)))
+    (sql/format (->map this)
+
+                :params params
+                :allow-namespaced-names? true
+                :quoting :ansi
+
+)))
 
 
 (defn builder
   []
   (->QueryBuilder (atom WHERE-EMPTY)
                   (atom [])
-                  (atom {:modifiers [:distinct]})))
+                  (atom {})))
 
 
 (def builder? (partial satisfies? IQueryBuilder))

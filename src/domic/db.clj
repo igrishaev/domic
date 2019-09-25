@@ -7,7 +7,7 @@
 
 (defn db-pg
   []
-  (->DBPG :datoms3 '[e a v t]))
+  (->DBPG :datoms4 '[e a v t]))
 
 
 (def db-pg? (partial instance? DBPG))

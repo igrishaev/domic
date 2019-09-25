@@ -718,5 +718,17 @@ from
 
 join
 
+;
+
+
+with foo as (
+    select * from datoms4 where e = 7
+)
+
+select
+
+(select v::integer from foo where a = 'release/artist') as "release/artist",
+(select v::integer from foo where a = 'release/year') as "release/year",
+array (select v::integer from foo where a = 'release/tag') as "release/year"
 
 ;

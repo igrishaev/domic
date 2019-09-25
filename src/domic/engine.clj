@@ -2,13 +2,18 @@
   (:require
    [clojure.java.jdbc :as jdbc])
   (:import [clojure.lang Keyword Symbol]
-           org.postgresql.util.PGobject)
+           org.postgresql.util.PGobject
+           org.postgresql.jdbc.PgArray
+
+           )
   )
 
 
 (defprotocol IEngine
 
-  (query [this query]))
+  (query
+    [this query]
+    [this query opt]))
 
 
 (defrecord Engine
@@ -17,7 +22,10 @@
   IEngine
 
   (query [this query]
-    (jdbc/query db-spec query)))
+    (jdbc/query db-spec query))
+
+  (query [this query opt]
+    (jdbc/query db-spec query opt)))
 
 
 (defn engine
@@ -32,7 +40,8 @@
     (.setValue value)))
 
 
-#_
+
+
 (extend-protocol jdbc/ISQLValue
 
   Symbol
@@ -44,6 +53,21 @@
 
   (sql-value [val]
     (->pgobject "text" (subs (str val) 1))))
+
+
+(extend-protocol jdbc/IResultSetReadColumn
+
+  PgArray
+  (result-set-read-column [pgarray metadata index]
+    (let [;; array-type (.getBaseTypeName pgarray)
+          array-java (.getArray pgarray)]
+
+      (set array-java)
+
+      #_
+      (with-meta
+        (set array-java)
+        {:sql/array-type array-type}))))
 
 
 ;; (defmulti pgobject->
