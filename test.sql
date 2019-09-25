@@ -722,13 +722,100 @@ join
 
 
 with foo as (
-    select * from datoms4 where e = 7
+    select * from datoms4 where e in (6, 7)
 )
-
 select
+e,
+(select v from foo where a = 'release/artist' limit 1) as "release/artist",
+(select v from foo where a = 'release/year' limit 1)   as "release/year"
+from foo
+group by e
+;
 
-(select v::integer from foo where a = 'release/artist') as "release/artist",
+
+with foo as (
+    select * from datoms4 where e in (6, 7)
+)
+select
+e,
+first_value(v) over (partition by e, a)
+from foo
+;
+
+
+with foo as (
+    select * from datoms4 where e in (6, 7)
+)
+select
+e,
+first_value(case when a = 'release/artist' then v::integer end)  -- as "release/artist"
+-- first_value(case when a = 'release/year' then v::integer end) as "release/year",
+-- first_value(case when a = 'release/tag' then v end) as "release/tag"
+OVER (PARTITION BY e)
+from foo
+;
+
+
+with foo as (
+    select * from datoms4 where e in (6, 7)
+)
+select
+e as "db/id",
+max(v::integer) filter (where a = 'release/artist') as "release/artist",
+ max(v::integer) filter (where a = 'release/year') as "release/year",
+--max(case when a = 'release/year' then v::integer end) as "release/year",
+ array_agg(v) filter (where a = 'release/tag') as "release/tag"
+--array_remove(array_agg(case when a = 'release/tag' then v end), null) as "release/tag"
+from foo
+group by e
+;
+
+
+
+with foo as (
+    select * from datoms4 where e in (6, 7)
+)
+select
+e,
+
+array_agg(v) filter (where a = 'release/tag')
+over (partition by e,a)
+as "release/tag"
+from foo
+;
+
+
+
+
+with foo as (
+    select * from datoms4 where e in (6, 7)
+)
+select
+e,
+first_value(v) over w
+from foo
+
+WINDOW w AS (
+    partition by e
+    where a = 'release/artist'
+
+)
+;
+
+
+(select v::integer from foo where a = 'release/artist' and e = aaa) as "release/artist",
 (select v::integer from foo where a = 'release/year') as "release/year",
-array (select v::integer from foo where a = 'release/tag') as "release/year"
 
+
+
+WITH "sub1" AS (SELECT * FROM "datoms4" WHERE ("e" in (6, 7))) SELECT (SELECT CAST("v" AS integer) FROM "sub1" WHERE ("a" = 'release/year')) AS "release/year", (SELECT CAST("v" AS integer) FROM "sub1" WHERE ("a" = 'release/artist')) AS "release/artist", array((SELECT CAST("v" AS text) FROM "sub1" WHERE ("a" = 'release/tag'))) AS "release/tag";
+
+
+with foo as (
+    select * from datoms4 where e in (6, 7)
+)
+select
+e, a, array_agg(v)
+from foo
+group by e, a
 ;

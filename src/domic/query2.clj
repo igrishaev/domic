@@ -686,8 +686,6 @@
 
     (doseq [attr attrs]
 
-
-
       (let [sub (qb/builder)
 
             multiple? (am/multiple? am attr)
@@ -738,6 +736,8 @@
   )
 
 
+#_
+(sql/format {:select [(sql/raw [(sql/call :max (sql/call :cast :foo :integer)) " filter " {:where [:and [:= :a (sql/param :foo)]]}])]})
 
 (defn gen-data
   []
