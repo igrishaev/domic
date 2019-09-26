@@ -682,7 +682,7 @@
            set))))
 
 
-(defn pull [_attrs e]
+(defn -pull [_attrs e]
 
   (let [qb (qb/builder)
         sg (sym-generator)
@@ -699,7 +699,7 @@
 
         aaa (qb/builder)
 
-        _attrs (resolve-attrs e)
+        ;; _attrs (resolve-attrs e)
 
         ]
 
@@ -762,6 +762,7 @@
       (en/query en (into [query] args)))))
 
 
+#_
 (defn pull*
   []
   (let [p1 (pull [:*] [6 7])
@@ -777,6 +778,65 @@
 
     (for [p p1]
       (update p :release/artist getter grouped))))
+
+
+(defn pull-join [p1 p2 attr]
+
+  ;; (println "-----" p1)
+  ;; (println "-----" p2)
+  ;; (println "-----" attr)
+
+  (let [p2-grouped (group-by :db/id p2)
+        p2-getter (fn [id]
+                    (first (get p2-grouped id)))]
+
+    (for [p p1]
+      (update p attr p2-getter))))
+
+
+(defn pull-parsed [pattern e]
+
+  ;; (println "+++++" pattern e)
+
+  (let [wc? (some (fn [x]
+                    (some-> x first (= :wildcard)))
+                  pattern)
+
+        links (seq
+               (reduce
+                (fn [result [tag node]]
+                  (if (= tag :map-spec)
+                    (merge result node)
+                    result)) {} pattern))
+
+        attrs (when-not wc?
+                (seq
+                 (for [node pattern
+                       :let [[tag attr] node]
+                       :when (= tag :attr)]
+                   attr)))
+
+        attrs* (cond
+                 wc? (resolve-attrs e)
+                 attrs attrs
+                 :else (/ 0 0))]
+
+    (let [p1 (-pull attrs* e)]
+
+      (reduce
+       (fn [p [attr pattern]]
+         (if-let [entities (seq (map attr p))]
+           (let [p2 (pull-parsed (second pattern) entities)]
+             (pull-join p p2 attr))
+           p))
+       p1
+       links))))
+
+
+(defn pull [pattern e]
+  (let [parsed (s/conform ::ds/pattern pattern)]
+    (assert (not= parsed ::s/invalid))
+    (pull-parsed parsed e)))
 
 
 (defn gen-data
