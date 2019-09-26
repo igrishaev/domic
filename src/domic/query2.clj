@@ -377,27 +377,7 @@
       (qb/add-where qb [pred (first args*) (rest args*)])
       #_
       (qb/add-where qb (into [pred] args*))
-
-
-
-
-
-
-
-      )
-
-
-
-
-
-
-    )
-
-
-
-
-
-  )
+)))
 
 
 (defn add-clause
@@ -716,11 +696,9 @@
       :else
       (throw (new Exception "dunno")))
 
-    (qb/add-with qb [alias-with (qb/->map aaa)])
+    (qb/add-from qb [(qb/->map aaa) alias-with])
 
     (qb/add-select qb [:e "db/id"])
-
-    (qb/add-from qb alias-with)
 
     (qb/add-group-by qb :e)
 
