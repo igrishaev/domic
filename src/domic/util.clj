@@ -21,3 +21,8 @@
             state* (swap! state update prefix inc*)
             num (get state* prefix)]
         (keyword (str prefix num))))))
+
+
+(defn kw->str
+  [kword]
+  (-> kword str (subs 1)))
