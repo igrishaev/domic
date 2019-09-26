@@ -724,7 +724,6 @@
 
     (qb/add-group-by qb :e)
 
-
     (doseq [attr _attrs]
 
       (let [sub (qb/builder)
@@ -762,29 +761,7 @@
       (en/query en (into [query] args)))))
 
 
-#_
-(defn pull*
-  []
-  (let [p1 (pull [:*] [6 7])
-
-        artist-ids (map :release/artist p1)
-
-        p2 (pull [:*] artist-ids)
-
-        grouped (group-by :db/id p2)
-
-        getter (fn [id data]
-                 (first (get data id)))]
-
-    (for [p p1]
-      (update p :release/artist getter grouped))))
-
-
 (defn pull-join [p1 p2 attr]
-
-  ;; (println "-----" p1)
-  ;; (println "-----" p2)
-  ;; (println "-----" attr)
 
   (let [p2-grouped (group-by :db/id p2)
         p2-getter (fn [id]
