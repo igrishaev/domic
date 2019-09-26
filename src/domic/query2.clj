@@ -677,12 +677,20 @@
                :release/artist
                :release/tag]]
 
-
     (qb/add-select aaa :*)
     (qb/add-from aaa :datoms4)
+
+    #_
     (qb/add-where aaa [:= :e e])
+    (qb/add-where aaa [:in :e [6 7]])
 
     (qb/add-with qb [alias-with (qb/->map aaa)])
+
+    (qb/add-select qb [:e "db/id"])
+
+    (qb/add-from qb alias-with)
+
+    (qb/add-group-by qb :e)
 
     (doseq [attr attrs]
 
@@ -698,46 +706,28 @@
 
             pg-type (am/get-pg-type am attr)
 
-            ]
+            agg (if multiple? :array_agg :max)
 
-        ;; (qp/add-param qp _a attr)
-        (qp/add-param qp _a attr)
+            cast (partial sql/call :cast)
 
+            clause
+            (sql/raw
+             [(sql/call agg (cast :v (sql/inline pg-type)))
+              " filter "
+              {:where [:and [:= :a (sql/param attr)]]}])]
+
+        (qp/add-param qp attr attr)
         (qb/add-from sub alias-with)
-
-        (qb/add-select sub (sql/call :cast :v (sql/inline pg-type)))
-        (qb/add-where sub [:= :a param2])
-        (qb/add-select
-         qb
-
-         (if multiple?
-           [(sql/call :array (qb/->map sub)) attr]
-           [(qb/->map sub) attr])
-
-         #_
-         [(qb/->map sub) param2])))
-
-    (println (qp/get-params qp))
+        (qb/add-select qb [clause (-> attr str (subs 1))])
+        (qb/add-where sub [:= :a param2])))
 
     (clojure.pprint/pprint (qb/->map qb))
-
     (println (qb/format qb (qp/get-params qp)))
 
     (let [params (qp/get-params qp)
           [query & args] (qb/format qb params)]
-      (en/query en (into [query] args)))
+      (en/query en (into [query] args)))))
 
-
-
-
-
-    )
-
-  )
-
-
-#_
-(sql/format {:select [(sql/raw [(sql/call :max (sql/call :cast :foo :integer)) " filter " {:where [:and [:= :a (sql/param :foo)]]}])]})
 
 (defn gen-data
   []
