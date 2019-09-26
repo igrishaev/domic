@@ -1,12 +1,10 @@
 (ns domic.engine
   (:require
    [clojure.java.jdbc :as jdbc])
-  (:import [clojure.lang Keyword Symbol]
-           org.postgresql.util.PGobject
-           org.postgresql.jdbc.PgArray
-
-           )
-  )
+  (:import
+   [clojure.lang Keyword Symbol]
+   org.postgresql.util.PGobject
+   org.postgresql.jdbc.PgArray))
 
 
 (defprotocol IEngine
@@ -33,13 +31,11 @@
   (->Engine db-spec))
 
 
-(defn ->pgobject
-  [^Keyword type ^String value]
+(defn ->pg-obj
+  [^String type ^String value]
   (doto (PGobject.)
     (.setType type)
     (.setValue value)))
-
-
 
 
 (extend-protocol jdbc/ISQLValue
@@ -47,53 +43,20 @@
   Symbol
 
   (sql-value [val]
-    (->pgobject "text" (str val)))
+    (->pg-obj "text" (-> val str)))
 
   Keyword
 
   (sql-value [val]
-    (->pgobject "text" (subs (str val) 1))))
+    (->pg-obj "text" (-> val str (subs 1)))))
 
 
 (extend-protocol jdbc/IResultSetReadColumn
 
   PgArray
   (result-set-read-column [pgarray metadata index]
-    (let [;; array-type (.getBaseTypeName pgarray)
+    (let [array-type (.getBaseTypeName pgarray)
           array-java (.getArray pgarray)]
-
-      (set array-java)
-
-      #_
       (with-meta
         (set array-java)
         {:sql/array-type array-type}))))
-
-
-;; (defmulti pgobject->
-;;   (fn [^PGobject pgobj]
-;;     (.getType pgobj)))
-
-;; (defmethod pgobject-> "keyword"
-;;   [^PGobject pgobj]
-;;   (-> pgobj .getValue keyword))
-
-
-
-#_
-(extend-protocol jdbc/IResultSetReadColumn
-
-  PGobject
-  (result-set-read-column [pgobj metadata index]
-    (case (.getType pgobj)
-      ("json" "jsonb")
-      (-> (.getValue pgobj)
-          (json/parse-string true)))))
-
-
-#_
-(defn ->pg
-  [value]
-  (doto (PGobject.)
-    (.setType "jsonb")
-    (.setValue (json/generate-string value))))
