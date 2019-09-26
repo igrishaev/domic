@@ -95,6 +95,20 @@
       (update p attr updater))))
 
 
+(defn- find-attrs
+  [pattern]
+  (seq
+   (reduce
+    (fn [result node]
+      (let [[tag node] node]
+        (case tag
+          :attr (conj result node)
+          :map-spec (into result (keys node))
+          result)))
+    []
+    pattern)))
+
+
 (defn- pull-parsed
   [{:as scope :keys [am]}
    pattern e]
@@ -103,6 +117,16 @@
                     (some-> x first (= :wildcard)))
                   pattern)
 
+        attrs (when-not wc?
+                (find-attrs pattern))
+
+        attrs-final
+        (cond
+          wc? (resolve-attrs scope e)
+          attrs attrs
+          :else
+          (error! "No attributes in the pattern: %s" pattern))
+
         links (seq
                (reduce
                 (fn [result [tag node]]
@@ -110,21 +134,7 @@
                     (merge result node)
                     result)) {} pattern))
 
-        attrs (when-not wc?
-                (seq
-                 (for [node pattern
-                       :let [[tag attr] node]
-                       :when (= tag :attr)]
-                   attr)))
-
-        attrs* (cond
-                 wc? (resolve-attrs scope e)
-                 attrs attrs
-                 :else (/ 0 0))
-
-        p1 (-pull scope attrs* e)
-
-        ]
+        p1 (-pull scope attrs-final e)]
 
 
     (reduce
