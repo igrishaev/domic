@@ -13,8 +13,7 @@
    [datomic-spec.core :as ds]))
 
 
-
-(defn qb-add-entities
+(defn- qb-add-entities
   [qb e]
   (cond
     (int? e)
@@ -27,7 +26,7 @@
     (error! "Wrong entity param: %s" e)))
 
 
-(defn resolve-attrs
+(defn- resolve-attrs
   [{:as scope :keys [en]}
    e]
 
@@ -82,18 +81,22 @@
       (en/query en (qb/format qb params)))))
 
 
-(defn- pull-join [p1 p2 attr]
+(defn- pull-join [p1 p2 attr multiple?]
 
-  (let [p2-grouped (group-by :db/id p2)
-        p2-getter (fn [id]
-                    (first (get p2-grouped id)))]
+  (let [grouped (group-by :db/id p2)
+        getter (fn [e]
+                 (first (get grouped e)))
+        updater (if multiple?
+                  (fn [es]
+                    (map getter es))
+                  getter)]
 
     (for [p p1]
-      (update p attr p2-getter))))
+      (update p attr updater))))
 
 
 (defn- pull-parsed
-  [scope
+  [{:as scope :keys [am]}
    pattern e]
 
   (let [wc? (some (fn [x]
@@ -117,19 +120,26 @@
         attrs* (cond
                  wc? (resolve-attrs scope e)
                  attrs attrs
-                 :else (/ 0 0))]
+                 :else (/ 0 0))
 
-    (let [p1 (-pull scope attrs* e)]
+        p1 (-pull scope attrs* e)
 
-      (reduce
-       (fn [p [attr pattern]]
-         (if-let [e (seq (map attr p))]
-           (let [[_ pattern] pattern
-                 p2 (pull-parsed scope pattern e)]
-             (pull-join p p2 attr))
-           p))
-       p1
-       links))))
+        ]
+
+
+    (reduce
+     (fn [p [attr pattern]]
+       (let [[_ pattern] pattern
+             multiple? (am/multiple? am attr)
+             es (if multiple?
+                  (seq (mapcat attr p))
+                  (seq (map attr p)))]
+         (if es
+           (let [p2 (pull-parsed scope pattern es)]
+             (pull-join p p2 attr multiple?))
+           p)))
+     p1
+     links)))
 
 
 (defn pull
