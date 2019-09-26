@@ -762,10 +762,8 @@ with foo as (
 select
 e as "db/id",
 max(v::integer) filter (where a = 'release/artist') as "release/artist",
- max(v::integer) filter (where a = 'release/year') as "release/year",
---max(case when a = 'release/year' then v::integer end) as "release/year",
- array_agg(v) filter (where a = 'release/tag') as "release/tag"
---array_remove(array_agg(case when a = 'release/tag' then v end), null) as "release/tag"
+max(v::integer) filter (where a = 'release/year') as "release/year",
+array_agg(v) filter (where a = 'release/tag') as "release/tag"
 from foo
 group by e
 ;

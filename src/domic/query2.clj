@@ -656,7 +656,33 @@
     ))
 
 
-(defn pull [pattern e]
+(defn resolve-attrs [e]
+
+  (let [qb (qb/builder)
+        en (en/engine db)]
+
+    (cond
+      (int? e)
+      (qb/add-where qb [:= :e e])
+
+      (coll? e)
+      (qb/add-where qb [:in :e e])
+
+      :else
+      (throw (new Exception "dunno")))
+
+    (qb/add-select qb :a)
+    (qb/add-from qb :datoms4)
+
+    (let [query (qb/format qb)
+          result (en/query en query {:as-arrays? true})]
+
+      (->> (rest result)
+           (map (comp keyword first))
+           set))))
+
+
+(defn pull [_attrs e]
 
   (let [qb (qb/builder)
         sg (sym-generator)
@@ -673,16 +699,22 @@
 
         aaa (qb/builder)
 
-        attrs [:release/year
-               :release/artist
-               :release/tag]]
+        _attrs (resolve-attrs e)
+
+        ]
 
     (qb/add-select aaa :*)
     (qb/add-from aaa :datoms4)
 
-    #_
-    (qb/add-where aaa [:= :e e])
-    (qb/add-where aaa [:in :e [6 7]])
+    (cond
+      (int? e)
+      (qb/add-where aaa [:= :e e])
+
+      (coll? e)
+      (qb/add-where aaa [:in :e e])
+
+      :else
+      (throw (new Exception "dunno")))
 
     (qb/add-with qb [alias-with (qb/->map aaa)])
 
@@ -692,7 +724,8 @@
 
     (qb/add-group-by qb :e)
 
-    (doseq [attr attrs]
+
+    (doseq [attr _attrs]
 
       (let [sub (qb/builder)
 
@@ -721,12 +754,29 @@
         (qb/add-select qb [clause (-> attr str (subs 1))])
         (qb/add-where sub [:= :a param2])))
 
-    (clojure.pprint/pprint (qb/->map qb))
-    (println (qb/format qb (qp/get-params qp)))
+    ;; (clojure.pprint/pprint (qb/->map qb))
+    ;; (println (qb/format qb (qp/get-params qp)))
 
     (let [params (qp/get-params qp)
           [query & args] (qb/format qb params)]
       (en/query en (into [query] args)))))
+
+
+(defn pull*
+  []
+  (let [p1 (pull [:*] [6 7])
+
+        artist-ids (map :release/artist p1)
+
+        p2 (pull [:*] artist-ids)
+
+        grouped (group-by :db/id p2)
+
+        getter (fn [id data]
+                 (first (get data id)))]
+
+    (for [p p1]
+      (update p :release/artist getter grouped))))
 
 
 (defn gen-data
