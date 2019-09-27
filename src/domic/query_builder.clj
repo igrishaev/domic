@@ -1,10 +1,13 @@
 (ns domic.query-builder
   (:refer-clojure :exclude [format])
   (:require
+   [clojure.pprint :refer [pprint]]
    [honeysql.core :as sql]))
 
 
 (defprotocol IQueryBuilder
+
+  (debug [this] [this params])
 
   (set-distinct [this])
 
@@ -75,6 +78,13 @@
      sql]
 
   IQueryBuilder
+
+  (debug [this]
+    (debug this {}))
+
+  (debug [this params]
+    (pprint (->map this))
+    (println (format this params)))
 
   (set-distinct [this]
     (swap! sql update :modifiers conj* :distinct))

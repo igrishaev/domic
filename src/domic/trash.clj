@@ -115,3 +115,7 @@
                       :a (do :release/year)
                       :v (do release-year)
                       :t (do 42)})))))
+
+
+          ;; query (str "explain analyze " query)
+          ;; pg-args (mapv en/->pg args)

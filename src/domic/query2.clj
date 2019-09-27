@@ -24,7 +24,7 @@
   (:import [domic.db DBPG DBTable]))
 
 #_
-(def q
+(def query
   '
   [:find ?name ?a ?x ?y ?m ?p
    :in $ $data ?name [?x ...] ?y [[?m _ ?p]]
@@ -32,7 +32,8 @@
    [$ ?a :artist/name ?name]])
 
 
-(def q
+#_
+(def query
   '
   [:find ?x
    :in $ $data
@@ -41,7 +42,7 @@
    [$data ?b ?x]])
 
 
-(def q
+(def query
   '
   [:find ?r
    :in $ ?name
@@ -49,10 +50,6 @@
    [$ ?r :release/year 1985]
    #_
    [$ ?a :artist/name ?name]])
-
-
-(def parsed
-  (s/conform ::ds/query q))
 
 
 (defprotocol IDBActions
@@ -272,9 +269,7 @@
                 (let [[tag arg] arg]
                   (case tag
                     :var
-                    (if (vm/bound? vm arg)
-                      (vm/get-val! vm arg)
-                      (throw (new Exception "AAA")))
+                    (vm/get-val! vm arg)
 
                     :cst
                     (let [[tag arg] arg]
@@ -282,13 +277,9 @@
                         (qp/add-param qp param arg)
                         (sql/param param))))))]
 
-
     (case pred-tag
       :sym
-      (qb/add-where qb [pred (first args*) (rest args*)])
-      #_
-      (qb/add-where qb (into [pred] args*))
-)))
+      (qb/add-where qb [pred (first args*) (rest args*)]))))
 
 
 (defn add-clause
@@ -421,57 +412,25 @@
           (qb/add-group-by qb alias))))))
 
 
-(def attrs
-  [{:db/ident       :artist/name
-    :db/valueType   :db.type/string
-    :db/cardinality :db.cardinality/one}
-
-   {:db/ident       :release/artist
-    :db/valueType   :db.type/ref
-    :db/cardinality :db.cardinality/one}
-
-   {:db/ident       :release/year
-    :db/valueType   :db.type/integer
-    :db/cardinality :db.cardinality/one}
-
-   {:db/ident       :release/tag
-    :db/valueType   :db.type/string
-    :db/cardinality :db.cardinality/many}])
+(defn as-vector
+  [{:as scope :keys [en]}
+   query]
+  (rest (en/query en query {:as-arrays? true})))
 
 
+(defn- q-internal
+  [{:as scope :keys [en am]}
+   query-parsed
+   & query-inputs]
 
-(require '[clojure.java.jdbc :as jdbc])
+  (let [scope (assoc scope
+                     :sg (sym-generator)
+                     :vm (vm/manager)
+                     :qb (qb/builder)
+                     :dm (dm/manager)
+                     :qp (qp/params))
 
-(def db {:dbtype "postgresql"
-         :dbname "test"
-         :host "127.0.0.1"
-         :user "ivan"
-         :password "ivan"}
-  )
-
-
-
-
-
-(defn aaa
-  [query-parsed & query-inputs]
-
-  (let [db-spec {:dbtype "postgresql"
-                 :dbname "test"
-                 :host "127.0.0.1"
-                 :user "ivan"
-                 :password "ivan"}
-
-        en (en/engine db-spec)
-
-        sg (sym-generator)
-        vm (vm/manager)
-        qb (qb/builder)
-        qp (qp/params)
-        dm (dm/manager)
-        am (am/manager attrs)
-
-        scope {:sg sg :vm vm :qb qb :dm dm :qp qp :am am}
+        {:keys [qb qp]} scope
 
         {:keys [find in where]} query-parsed
         {:keys [inputs]} in
@@ -484,48 +443,26 @@
 
     (qb/set-distinct qb)
 
-    (clojure.pprint/pprint (qb/->map qb))
-    (println (qp/get-params qp))
-    (println (qb/format qb (qp/get-params qp)))
+    (qb/debug qb (qp/get-params qp))
 
     (let [params (qp/get-params qp)
-          [query & args] (qb/format qb params)
-          ;; query (str "explain analyze " query)
-          ;; pg-args (mapv en/->pg args)
-          ]
-      (en/query en (into [query] args) {:as-arrays? true}))
-
-    ;; (en/query en (qb/format qb))
-
-    ))
+          query (qb/format qb params)]
+      (as-vector scope query))))
 
 
-(defn resolve-attrs [e]
-
-  (let [qb (qb/builder)
-        en (en/engine db)]
-
-    (cond
-      (int? e)
-      (qb/add-where qb [:= :e e])
-
-      (coll? e)
-      (qb/add-where qb [:in :e e])
-
-      :else
-      (throw (new Exception "dunno")))
-
-    (qb/add-select qb :a)
-    (qb/add-from qb :datoms4)
-
-    (let [query (qb/format qb)
-          result (en/query en query {:as-arrays? true})]
-
-      (->> (rest result)
-           (map (comp keyword first))
-           set))))
+(defn- parse-query
+  [query-list]
+  (let [result (s/conform ::ds/query query-list)]
+    (if (= result ::s/invalid)
+      (error! "Cannot parse query: %s" query-list)
+      result)))
 
 
+(defn q [scope query-list & args]
+  (apply q-internal
+         scope
+         (parse-query query-list)
+         args))
 
 #_
 (do
