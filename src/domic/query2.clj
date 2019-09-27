@@ -2,6 +2,9 @@
 
   (:require [clojure.spec.alpha :as s]
 
+            [domic.sql-helpers :refer
+             [->cast]]
+
             [domic.util :refer [sym-generator]]
             [domic.error :refer [error!]]
             [domic.db :as db]
@@ -94,6 +97,7 @@
     )])
 
 
+#_
 (def q
   '
   [:find ?name ?a
@@ -101,6 +105,14 @@
    :where
    [$ ?r :release/year 1985]
    [$ ?r :release/artist ?a]
+   [$ ?a :artist/name ?name]])
+
+
+(def q
+  '
+  [:find ?name ?a ?x ?y ?m ?p
+   :in $ ?name [?x ...] ?y [[?m _ ?p]]
+   :where
    [$ ?a :artist/name ?name]])
 
 
@@ -143,7 +155,7 @@
                             (am/get-pg-type am attr)))
 
                 fq-field (if (and pg-type (not= pg-type :text))
-                           (sql/call :cast fq-field pg-type)
+                           (->cast fq-field pg-type)
                            fq-field)]
 
             (case tag
@@ -290,31 +302,42 @@
         (let [[tag input] input]
           (case tag
 
-            :bind-rel nil
-            #_
-            (let [arity (-> input first count)
-                  fields (for [_ (first input)] (sg "f"))
-                  alias [(sg "coll") (sql/raw (format "(%s)" (join fields)))]
-                  from [{:values param} alias]]
+            :bind-rel
+            (let [[input] input
+                  alias-coll (sg "data")
+                  alias-fields (for [_ input] (sg "f"))
+                  alias-full
+                  (sql/inline
+                   (format "%s (%s)"
+                           (name alias-coll)
+                           (join (map name alias-fields))))
+                  from [{:values param} alias-full]]
 
               (qb/add-from qb from)
 
-              (doseq [[input field] (zip input fields)]
-                (let [[tag input] input]
+              (doseq [[input alias-field]
+                      (zip input alias-fields)]
+                (let [[tag input] input
+                      alias-fq (sql/qualify alias-coll alias-field)]
                   (case tag
                     :unused nil
                     :var
-                    (vm/bind! vm input field :in input-src nil)))))
+                    (vm/bind! vm input alias-fq)))))
 
-            :bind-coll nil
-            #_
+            :bind-coll
             (let [{:keys [var]} input
-                  as (sg "coll")
-                  field (sg "f")
+
+                  alias-coll (sg "coll")
+                  alias-field (sg "field")
+                  alias-full (sql/inline
+                              (format "%s (%s)"
+                                      (name alias-coll)
+                                      (name alias-field)))
+
+                  field (sql/qualify alias-coll alias-field)
                   values {:values (mapv vector param)}
-                  alias (sql/raw (format "%s (%s)" as field))
-                  from [values alias]]
-              (vm/bind! vm var field :in input-src nil)
+                  from [values alias-full]]
+              (vm/bind! vm var field)
               (qb/add-from qb from))
 
             :bind-tuple nil
@@ -619,10 +642,8 @@
     (qb/set-distinct qb)
 
     (clojure.pprint/pprint (qb/->map qb))
-
     (println (qp/get-params qp))
-
-    (clojure.pprint/pprint (qb/format qb (qp/get-params qp)))
+    (println (qb/format qb (qp/get-params qp)))
 
     (let [params (qp/get-params qp)
           [query & args] (qb/format qb params)
@@ -662,6 +683,7 @@
            set))))
 
 
+#_
 (defn gen-data
   []
 
@@ -707,3 +729,36 @@
     )
 
   )
+
+
+#_
+(do
+
+  (def _attrs
+    [{:db/ident       :artist/name
+      :db/valueType   :db.type/string
+      :db/cardinality :db.cardinality/one}
+
+     {:db/ident       :release/artist
+      :db/valueType   :db.type/ref
+      :db/cardinality :db.cardinality/many
+      :db/isComponent true}
+
+     {:db/ident       :release/year
+      :db/valueType   :db.type/integer
+      :db/cardinality :db.cardinality/one}
+
+     {:db/ident       :release/tag
+      :db/valueType   :db.type/string
+      :db/cardinality :db.cardinality/many}])
+
+  (def _db
+    {:dbtype "postgresql"
+     :dbname "test"
+     :host "127.0.0.1"
+     :user "ivan"
+     :password "ivan"})
+
+  (def _scope
+    {:am (am/manager _attrs)
+     :en (en/engine _db)}))
