@@ -6,7 +6,8 @@
              [->cast as-fields as-field]]
 
             [domic.util :refer [sym-generator]]
-            [domic.error :refer [error!]]
+            [domic.error :refer
+             [error! error-case!]]
             [domic.db :as db]
             [domic.var-manager :as vm]
             [domic.query-builder :as qb]
@@ -22,96 +23,28 @@
 
   (:import [domic.db DBPG DBTable]))
 
-
-
-(def table
-  [[5 6 7 8]
-   [5 6 7 8]
-   [5 6 7 8]
-   [5 6 7 8]
-   [5 6 7 8]
-   [5 6 7 8]])
-
-
-(def q
-  '
-  [:find ?e ?name ?y
-   :in $ ?name
-   :where
-   [$ ?e :artist/name ?name]
-
-   [$ ?r :release/artist ?e]
-   [$ ?r :release/year ?y]
-   (not
-    [$ ?r :release/year 1985])])
-
-
-(def q
-  '
-  [:find ?name ?y
-   :in $ ?name
-   :where
-   [$ ?e :artist/name ?name]
-   ;; [$ ?r :release/artist ?e]
-   ;; [$ ?r :release/year ?y]
-   #_
-   (or
-    [$ ?r :release/year 1985]
-    [$ ?r :release/year 1986])])
-
-
-(def q
-  '
-  [:find ?name (min ?y) (max ?y)
-   :in $ ?n1 ?n2
-   :where
-
-   [$ ?e :artist/name ?name]
-
-   #_
-   (or [$ ?e :artist/name "Queen222"]
-       [$ ?e :artist/name "Abba"])
-
-   [(in ?name ?n1 ?n2)]
-
-   ;; [$ ?e :artist/name ?name]
-   ;; (not [(= ?e 2)])
-
-   [$ ?r :release/artist ?e]
-   [$ ?r :release/year ?y]
-
-   #_
-   (not [$ ?r :release/year 1985])
-
-   ;; [$ ?e :artist/name _]
-   ;; [$ ?r :release/artist ?e]
-   ;; [$ ?r :release/year 1988]
-
-
-   #_
-
-   (or
-    [$ ?r :release/year 1985]
-    [$ ?r :release/year 1986]
-
-    )])
-
-
 #_
 (def q
   '
-  [:find ?name ?a
-   :in $
+  [:find ?name ?a ?x ?y ?m ?p
+   :in $ $data ?name [?x ...] ?y [[?m _ ?p]]
    :where
-   [$ ?r :release/year 1985]
-   [$ ?r :release/artist ?a]
    [$ ?a :artist/name ?name]])
 
 
 (def q
   '
-  [:find ?name ?a ?x ?y ?m ?p
-   :in $ $data ?name [?x ...] ?y [[?m _ ?p]]
+  [:find ?x
+   :in $ $data
+   :where
+   [$data  _ ?b]
+   [$data ?b ?x]])
+
+#_
+(def q
+  '
+  [:find ?a
+   :in $ ?name
    :where
    [$ ?a :artist/name ?name]])
 
@@ -179,89 +112,44 @@
                 (let [_v (vm/get-val vm elem)
                       where [:= fq-field _v]]
                   (qb/add-where qb where))
-                (vm/bind! vm elem fq-field)))))))
-
-
-    #_
-    (let [{:keys [alias fields]} db
-          {:keys [qb sg am vm]} scope
-
-          {:keys [elems]} expression
-
-          layer (sg "d")]
-
-      (qb/add-from qb [alias layer])
-
-      (doseq [[elem* field] (zip elems fields)]
-
-        (let [[tag elem] elem*
-
-              fq-field
-              (cond-> (sql/qualify layer field)
-                (and (= field 'v) pg-type (not= pg-type :text))
-                (cast pg-type))]
-
-          (case tag
-
-            :blank nil
-
-            :cst
-            (let [[tag v] elem]
-              (let [ ;; param (sg "?")
-                    where [:= fq-field v
-
-                           #_
-                           param
-
-                           #_
-                           (sql/param param)
-                           ]]
-                ;; (qb/add-param qb param v)
-                (qb/add-where qb where)))
-
-            :var
-            (if (vm/bound? vm elem)
-              (let [where [:= fq-field (vm/get-val vm elem)]]
-                (qb/add-where qb where))
-              (vm/bind! vm elem fq-field)))))))
+                (vm/bind! vm elem fq-field))))))))
 
   DBTable
 
   (init-db [db {:keys [qb]}]
     (let [{:keys [alias fields data]} db
-          alias-full (as-fields alias fields)
-          from [{:values data} alias-full]]
-      (qb/add-from qb from)))
+          with [[alias {:columns fields}] {:values data}]]
+      (qb/add-with qb with)))
 
   (add-pattern-db [db scope expression]
 
-    #_
-    (let [{:keys [alias fields]} db
-          {:keys [qb sg vm]} scope
+    (let [{:keys [qb sg vm]} scope
+          {:keys [alias fields]} db
           {:keys [elems]} expression
-          layer (sg "t")]
+          alias-layer (sg "layer")]
 
-      (qb/add-from qb [alias layer])
+      (qb/add-from qb [alias alias-layer])
 
       (doseq [[elem* field] (zip elems fields)]
-
         (let [[tag elem] elem*
-
-              fq-field
-              (sql/qualify layer field)]
+              alias-fq (sql/qualify alias-layer field)]
 
           (case tag
 
             :cst
             (let [[tag v] elem]
-              (let [where [:= fq-field v]]
+              (let [where [:= alias-fq v]]
                 (qb/add-where qb where)))
 
             :var
             (if (vm/bound? vm elem)
-              (let [where [:= fq-field (vm/get-val vm elem)]]
+              (let [where [:= alias-fq (vm/get-val vm elem)]]
                 (qb/add-where qb where))
-              (vm/bind! vm elem fq-field :where elems nil))))))))
+              (vm/bind! vm elem alias-fq))
+
+            :blank nil
+
+            (error-case! elem*)))))))
 
 
 (defn discover-db
@@ -329,7 +217,7 @@
               (vm/bind! vm var field)
               (qb/add-from qb from))
 
-            :bind-tuple nil
+            :bind-tuple nil ;; bug in spec
             #_
             (do
               (when-not (= (count input)
@@ -551,52 +439,7 @@
   )
 
 
-(defn transact [maps]
 
-  (jdbc/with-db-transaction [tx db]
-
-    (doseq [map maps]
-
-      (let [new? true
-            e 43
-            t 100
-            ]
-        (if new?
-          (jdbc/insert-multi! tx
-                              :datoms4
-                              (for [[key value] map]
-                                {:e e :a key :v value :t t}))
-
-          (doseq [[key value] map]
-
-            (let [singular? true]
-
-              (if singular?
-
-                (jdbc/delete! tx
-                              :datoms4
-                              []
-
-
-
-                              (for [[key value] map]
-                                {:e e :a key :v value :t t}))))
-
-
-            )
-
-          ))
-
-
-
-
-      )
-
-    )
-
-
-
-  )
 
 
 (defn aaa
