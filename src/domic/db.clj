@@ -5,21 +5,21 @@
     [alias fields])
 
 
-(defn db-pg
+(defn pg
   []
-  (->DBPG :datoms4 '[e a v t]))
+  (->DBPG :datoms4 [:e :a :v :t]))
 
 
-(def db-pg? (partial instance? DBPG))
+(def pg? (partial instance? DBPG))
 
 
 (defrecord DBTable
-    [data alias fields])
+    [alias fields data])
 
 
-(defn db-table
-  [data alias fields]
-  (->DBTable data alias fields))
+(defn table
+  [alias fields data]
+  (->DBTable alias fields data))
 
 
-(def db-table? (partial instance? DBTable))
+(def table? (partial instance? DBTable))

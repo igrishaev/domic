@@ -3,7 +3,7 @@
   (:require [clojure.spec.alpha :as s]
 
             [domic.sql-helpers :refer
-             [->cast]]
+             [->cast as-fields as-field]]
 
             [domic.util :refer [sym-generator]]
             [domic.error :refer [error!]]
@@ -111,7 +111,7 @@
 (def q
   '
   [:find ?name ?a ?x ?y ?m ?p
-   :in $ ?name [?x ...] ?y [[?m _ ?p]]
+   :in $ $data ?name [?x ...] ?y [[?m _ ?p]]
    :where
    [$ ?a :artist/name ?name]])
 
@@ -228,9 +228,10 @@
   DBTable
 
   (init-db [db {:keys [qb]}]
-    (let [{:keys [data alias fields]} db
-          with [[alias {:columns fields}] {:values data}]]
-      (qb/add-with qb with)))
+    (let [{:keys [alias fields data]} db
+          alias-full (as-fields alias fields)
+          from [{:values data} alias-full]]
+      (qb/add-from qb from)))
 
   (add-pattern-db [db scope expression]
 
@@ -264,17 +265,14 @@
 
 
 (defn discover-db
-  [{:keys [sg]} var db]
+  [{:keys [sg]} var data]
   (cond
-    (db/db-pg? db) db
-
-    (coll? db)
-    (let [alias (sg "t")
-          arity (-> db first count)
-          fields (for [_ (first db)]
-                   (sg "f"))]
-      (db/db-table db alias fields))
-
+    (db/pg? data) data
+    (coll? data)
+    (let [[row] data
+          alias-coll (sg "data")
+          alias-fields (for [_ row] (sg "f"))]
+      (db/table alias-coll alias-fields data))
     :else
     (error! "Wrong database: %s" var)))
 
@@ -306,11 +304,7 @@
             (let [[input] input
                   alias-coll (sg "data")
                   alias-fields (for [_ input] (sg "f"))
-                  alias-full
-                  (sql/inline
-                   (format "%s (%s)"
-                           (name alias-coll)
-                           (join (map name alias-fields))))
+                  alias-full (as-fields alias-coll alias-fields)
                   from [{:values param} alias-full]]
 
               (qb/add-from qb from)
@@ -326,14 +320,9 @@
 
             :bind-coll
             (let [{:keys [var]} input
-
                   alias-coll (sg "coll")
                   alias-field (sg "field")
-                  alias-full (sql/inline
-                              (format "%s (%s)"
-                                      (name alias-coll)
-                                      (name alias-field)))
-
+                  alias-full (as-field alias-coll alias-field)
                   field (sql/qualify alias-coll alias-field)
                   values {:values (mapv vector param)}
                   from [values alias-full]]
