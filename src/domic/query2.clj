@@ -79,9 +79,7 @@
           attr :artist/name
           pg-type :text
 
-          pairs (zip elems fields)
-
-          ]
+          pairs (zip elems fields)]
 
       (println pairs)
 
@@ -90,9 +88,10 @@
       (doseq [[elem* field] pairs]
 
         (let [[tag elem] elem*
+              v? (= field :v)
 
               alias-fq (sql/qualify alias-layer field)
-              alias-fq (if (and (= field :v) attr)
+              alias-fq (if (and v? attr)
                          (->cast alias-fq pg-type)
                          alias-fq)]
 
@@ -100,7 +99,10 @@
 
             :cst
             (let [[tag v] elem]
-              (let [where [:= alias-fq v]]
+              (let [alias-v (sg "v")
+                    param (sql/param alias-v)
+                    where [:= alias-fq param]]
+                (qp/add-param qp alias-v v)
                 (qb/add-where qb where)))
 
             :var
@@ -111,31 +113,7 @@
 
             :blank nil
 
-            (error-case! elem*))
-
-          #_
-          (case tag
-
-            :blank nil
-
-            :cst
-            (let [[tag value] elem]
-
-              (when (= field 'a)
-                (var-set attr value))
-
-              (let [_a (sg (str field))
-                    _p (sql/param _a)
-                    where [:= fq-field _p]]
-                (qp/add-param qp _a value)
-                (qb/add-where qb where)))
-
-            :var
-            (if (vm/bound? vm elem)
-              (let [_v (vm/get-val vm elem)
-                    where [:= fq-field _v]]
-                (qb/add-where qb where))
-              (vm/bind! vm elem fq-field)))))))
+            (error-case! elem*))))))
 
   DBTable
 
