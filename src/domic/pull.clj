@@ -62,7 +62,7 @@
    attrs
    mapping]
 
-  (let [alias-sub :subquery
+  (let [alias-sub (sg "sub")
         qb        (qb/builder)
         qb-sub    (qb/builder)
         qb-sub*   (qb/builder)]
