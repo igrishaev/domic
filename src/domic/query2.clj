@@ -287,19 +287,16 @@
                     (let [[tag arg] arg]
                       (let [param (sg "param")]
                         (qp/add-param qp param arg)
-                        (sql/param param))))))
-        ]
+                        (sql/param param))))))]
 
     (case pred-tag
       :sym
       (qb/add-where qb (into [pred] args*)))))
 
 
-(defn add-function
+(defn- add-function
   [{:as scope :keys [qb vm sg qp]}
    expression]
-
-  (println "-----" expression)
 
   (let [{:keys [expr binding]} expression
         {:keys [fn args]} expr
@@ -328,24 +325,20 @@
       :bind-scalar
       (vm/bind! vm binding fn-expr))))
 
+
 (defn- add-clause
   [scope clause]
-
   (let [[tag expression] clause]
-
-
     (case tag
-
       :fn-expr
       (add-function scope expression)
-
       :pred-expr
       (add-predicate scope expression)
-
       :data-pattern
       (add-pattern scope expression))))
 
 
+#_
 (defn- process-not-clause
   [{:as scope :keys [qb]} clause]
 
@@ -362,7 +355,7 @@
     (qb/add-select qb* (sql/inline 1))
     (qb/add-where qb [:not {:exists (qb/->map qb*)}])))
 
-
+#_
 (defn- process-or-clause
   [{:as scope :keys [qb]} clause]
   (qb/with-where-or qb
@@ -375,8 +368,8 @@
               (let [[tag clause] clause]
                 (case tag
 
-                  :not-clause
-                  (process-not-clause scope clause)
+                  ;; :not-clause
+                  ;; (process-not-clause scope clause)
 
                   :expression-clause
                   (add-clause scope clause))))))))))
@@ -387,13 +380,10 @@
   (doseq [clause clauses]
     (let [[tag clause] clause]
       (case tag
-
-        :or-clause
-        (process-or-clause scope clause)
-
-        :not-clause
-        (process-not-clause scope clause)
-
+        ;; :or-clause
+        ;; (process-or-clause scope clause)
+        ;; :not-clause
+        ;; (process-not-clause scope clause)
         :expression-clause
         (add-clause scope clause)))))
 
