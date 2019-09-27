@@ -43,9 +43,11 @@
 
 (def q
   '
-  [:find ?a
+  [:find ?r
    :in $ ?name
    :where
+   [$ ?r :release/year 1985]
+   #_
    [$ ?a :artist/name ?name]])
 
 
@@ -60,7 +62,16 @@
   (add-pattern-db [db scope expression]))
 
 
-(defn find-test [])
+(defn find-attr
+  [field-elem-pairs]
+  (when-let [elem (->> field-elem-pairs
+                       (into {})
+                       :a)]
+    (let [[tag elem] elem]
+      (when (= tag :cst)
+        (let [[tag elem] elem]
+          (when (= tag :kw)
+            elem))))))
 
 
 (extend-protocol IDBActions
@@ -76,16 +87,15 @@
           {:keys [elems]} expression
           alias-layer (sg "layer")
 
-          attr :artist/name
-          pg-type :text
+          field-elem-pairs (zip fields elems)
 
-          pairs (zip elems fields)]
-
-      (println pairs)
+          attr (find-attr field-elem-pairs)
+          pg-type (when attr
+                    (am/get-pg-type am attr))]
 
       (qb/add-from qb [alias alias-layer])
 
-      (doseq [[elem* field] pairs]
+      (doseq [[field elem*] field-elem-pairs]
 
         (let [[tag elem] elem*
               v? (= field :v)
@@ -515,53 +525,6 @@
            (map (comp keyword first))
            set))))
 
-
-#_
-(defn gen-data
-  []
-
-  (let [artist-ids [1 2 3 4 5]
-        artist-names ["Queen" "Abba" "Beatles" "Pink Floyd" "Korn"]
-        release-range (range 1 999)
-        year-range (range 1970 1999)
-
-        db {:dbtype "postgresql"
-            :dbname "test"
-            :host "127.0.0.1"
-            :user "ivan"
-            :password "ivan"}
-
-
-        ]
-
-    (doseq [artist-id artist-ids]
-
-      (let [artist-name (get artist-names (dec artist-id))]
-
-        (clojure.java.jdbc/insert! db :datoms4 {:e (do artist-id)
-                                                :a (do :artist/name)
-                                                :v (do artist-name)
-                                                :t (do 42)})))
-    (doseq [release-id (range 1 2000)]
-
-      (let [release-artist (rand-nth artist-ids)
-            release-year (rand-nth year-range)]
-
-        (clojure.java.jdbc/insert! db :datoms4 {:e (do release-id)
-                                                :a (do :release/artist)
-                                                :v (do release-artist)
-                                                :t (do 42)})
-
-        (clojure.java.jdbc/insert! db :datoms4 {:e (do release-id)
-                                                :a (do :release/year)
-                                                :v (do release-year)
-                                                :t (do 42)})))
-
-
-
-    )
-
-  )
 
 
 #_

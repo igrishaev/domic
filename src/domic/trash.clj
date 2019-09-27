@@ -72,3 +72,46 @@
               (let [where [:= fq-field (vm/get-val vm elem)]]
                 (qb/add-where qb where))
               (vm/bind! vm elem fq-field))))))
+
+
+(defn gen-data
+  []
+
+  (let [artist-ids [1 2 3 4 5]
+        artist-names ["Queen" "Abba" "Beatles" "Pink Floyd" "Korn"]
+        release-range (range 1 999)
+        year-range (range 1970 1999)
+
+        db {:dbtype "postgresql"
+            :dbname "test"
+            :host "127.0.0.1"
+            :user "ivan"
+            :password "ivan"}
+
+
+        ]
+
+    (doseq [artist-id artist-ids]
+
+      (let [artist-name (get artist-names (dec artist-id))]
+
+        (clojure.java.jdbc/insert! db :datoms4 {:e (do artist-id)
+                                                :a (do :artist/name)
+                                                :v (do artist-name)
+                                                :t (do 42)})))
+    (doseq [release-id (range 1 2000)]
+
+      (let [release-artist (rand-nth artist-ids)
+            release-year (rand-nth year-range)]
+
+        (clojure.java.jdbc/insert!
+         db :datoms4 {:e (do release-id)
+                      :a (do :release/artist)
+                      :v (do release-artist)
+                      :t (do 42)})
+
+        (clojure.java.jdbc/insert!
+         db :datoms4 {:e (do release-id)
+                      :a (do :release/year)
+                      :v (do release-year)
+                      :t (do 42)})))))
