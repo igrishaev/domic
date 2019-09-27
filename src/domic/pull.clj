@@ -98,8 +98,6 @@
 
 (defn- pull-join [p1 p2 attr multiple?]
 
-  (println "+++" (do p1) (do p2))
-
   (let [grouped (group-by :db/id p2)
         getter (fn [e]
                  (first (get grouped e)))
@@ -150,8 +148,6 @@
 (defn pull-join-backref
   [p1 p2 attr]
 
-  (println "~~~" (do p1) (do p2) attr)
-
   (let [attr-normal (am/backref->ref attr)
         grouped (group-by #(-> % attr-normal :db/id) p2)]
     (for [p p1]
@@ -175,14 +171,9 @@
    p attr pattern]
   (let [[_ pattern] pattern
         multiple? (am/multiple? am attr)
-
         es (seq (if multiple?
                   (mapcat attr p)
-                  (map attr p)))
-
-        _ (println "!!" multiple? attr es)
-
-        ]
+                  (map attr p)))]
     (if es
       (let [mapping {:e es}
             p2 (pull-parsed scope pattern mapping)]
@@ -214,12 +205,6 @@
           (error! "No attributes in the pattern: %s" pattern))
 
         attrs-final (set (concat attrs-final attr-extra))
-
-        _ (println "--" attrs-raw)
-        _ (println "--" attrs)
-        _ (println "--" attrs-final)
-        _ (println "--" mapping)
-        _ (println "--" )
 
         links (find-links pattern)
 
