@@ -3,8 +3,8 @@
   (:require [clojure.spec.alpha :as s]
 
             [domic.sql-helpers :refer
-             [->cast as-fields as-field]]
-
+             [->cast as-fields as-field lookup?]]
+            [domic.runtime :refer [resolve-lookup!]]
             [domic.util :refer [sym-generator]]
             [domic.error :refer
              [error! error-case!]]
@@ -44,16 +44,15 @@
 
 (def query
   '
-  [:find ;; [?r ...]  ?r .
-
-   ?r
-   ;; [?r ?name]
-
-   :in $ ?name
+  [:find ?r ?y ?name
+   :in $ ?a
    :where
-   [$ ?r :release/year 1985]
+   [$ ?r :release/artist ?a]
+   [$ ?r :release/year ?y]
+   [$ ?a :artist/name ?name]
+
    #_
-   [$ ?a :artist/name ?name]])
+   [$ ?a :db/ident :metallica]])
 
 
 (defprotocol IDBActions
@@ -244,10 +243,13 @@
                               :in input-src (type param-el))))))
 
             :bind-scalar
-            (let [_a (sg (name input))
-                  _p (sql/param _a)]
-              (qp/add-param qp _a param)
-              (vm/bind! vm input _p))))))))
+            (let [value (if (lookup? param)
+                          (resolve-lookup scope param)
+                          param)]
+              (let [_a (sg (name input))
+                    _p (sql/param _a)]
+                (qp/add-param qp _a value)
+                (vm/bind! vm input _p)))))))))
 
 
 (defn- add-pattern
