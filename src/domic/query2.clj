@@ -50,7 +50,7 @@
    [$ ?r :release/artist ?a]
    [$ ?r :release/year ?y]
    [$ ?a :artist/name ?name]
-
+   [(= ?y 1999)]
    #_
    [$ ?a :db/ident :metallica]])
 
@@ -228,7 +228,7 @@
               (vm/bind! vm var field)
               (qb/add-from qb from))
 
-            :bind-tuple nil ;; bug in spec
+            :bind-tuple nil ;; bug in datomic spec
             #_
             (do
               (when-not (= (count input)
@@ -263,11 +263,10 @@
 
 (defn- add-predicate
   [scope expression]
+
   (let [{:keys [qb vm sg qp]} scope
         {:keys [expr]} expression
         {:keys [pred args]} expr
-
-        [arg1 arg2] args
 
         [pred-tag pred] pred
 
@@ -281,11 +280,15 @@
                     (let [[tag arg] arg]
                       (let [param (sg "param")]
                         (qp/add-param qp param arg)
-                        (sql/param param))))))]
+                        (sql/param param))))))
+
+        ]
+
+    (println args*)
 
     (case pred-tag
       :sym
-      (qb/add-where qb [pred (first args*) (rest args*)]))))
+      (qb/add-where qb (into [pred] args*)))))
 
 
 (defn- add-clause

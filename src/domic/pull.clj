@@ -306,6 +306,9 @@
 
 
 #_
+(pull _scope '[:artist/*] [:db/ident :metallica])
+
+#_
 (do
 
   (def _attrs
