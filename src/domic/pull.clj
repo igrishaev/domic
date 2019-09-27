@@ -52,8 +52,7 @@
           result (en/query en query {:as-arrays? true})]
 
       (->> (rest result)
-           (map (comp keyword first))
-           set))))
+           (map (comp keyword first))))))
 
 
 (defn- -pull
@@ -118,16 +117,15 @@
 
 (defn- find-attrs
   [pattern]
-  (seq
-   (reduce
-    (fn [result node]
-      (let [[tag node] node]
-        (case tag
-          :attr (conj result node)
-          :map-spec (into result (keys node))
-          result)))
-    []
-    pattern)))
+  (reduce
+   (fn [result node]
+     (let [[tag node] node]
+       (case tag
+         :attr (conj result node)
+         :map-spec (into result (keys node))
+         result)))
+   []
+   pattern))
 
 
 (defn- find-links
@@ -216,6 +214,8 @@
         attrs-found (->> (find-attrs pattern)
                          (filter (complement am/-backref?)))
 
+        ;; attrs-wc (filter am/attr-wildcard? attrs-found)
+
         attrs (set (concat attrs-found
                            attrs-extra
                            (when wc?
@@ -234,14 +234,20 @@
      links)))
 
 
-(defn pull
+(defn pull-many
   [scope
-   pattern e]
-  (let [mapping {:e e}
+   pattern es]
+  (let [mapping {:e es}
         parsed (s/conform ::ds/pattern pattern)]
     (if (= parsed ::s/invalid)
       (error! "Wrong pull pattern: %s" pattern)
       (pull-parsed scope parsed mapping))))
+
+
+(defn pull
+  [scope
+   pattern e]
+  (first (pull-many scope pattern [e])))
 
 
 #_

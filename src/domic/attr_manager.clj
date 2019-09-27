@@ -60,6 +60,11 @@
    attr-list))
 
 
+(defn attr-wildcard?
+  [attr]
+  (some-> attr name (= "*")))
+
+
 (def pg-mapping
   {:db.type/string  :text
    :db.type/ref     :integer
@@ -67,6 +72,8 @@
 
 
 (defprotocol IAttrManager
+
+  (by-wildcard [this attr])
 
   (is-ref? [this attr])
 
@@ -81,6 +88,13 @@
     [attr-map]
 
   IAttrManager
+
+  (by-wildcard [this attr]
+    (let [a-ns (namespace attr)
+          a-keys (keys attr-map)]
+      (for [a-key a-keys
+            :when (= (namespace a-key) a-ns)]
+        a-key)))
 
   (is-ref? [this attr]
     (some-> attr-map
