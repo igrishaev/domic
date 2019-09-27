@@ -1,6 +1,7 @@
 (ns domic.attr-manager
-  (:require [domic.error :refer [error!]]))
-
+  (:require
+   [clojure.string :as str]
+   [domic.error :refer [error!]]))
 
 (def attr-defaults
 
@@ -25,9 +26,21 @@
            :db/cardinality :db.cardinality/many)))
 
 
+(defn backref->ref
+  [attr]
+  (let [a-ns (namespace attr)
+        a-name (name attr)]
+    (keyword a-ns (subs a-name 1))))
+
+
 (defn -ref-attr?
   [attr]
   (some-> attr :db/valueType (= :db.type/ref)))
+
+
+(defn -backref?
+  [attr]
+  (some-> attr name (str/starts-with? "_")))
 
 
 (defn build-back-refs
@@ -55,6 +68,8 @@
 
 (defprotocol IAttrManager
 
+  (is-ref? [this attr])
+
   (multiple? [this attr])
 
   (get-db-type [this attr])
@@ -66,6 +81,12 @@
     [attr-map]
 
   IAttrManager
+
+  (is-ref? [this attr]
+    (some-> attr-map
+            (get attr)
+            :db/valueType
+            (= :db.type/ref)))
 
   (multiple? [this attr]
     (some-> attr-map
