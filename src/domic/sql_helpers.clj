@@ -17,7 +17,7 @@
    :where [:and
            [:= :a a]
            [:= (->cast :v type) v]]
-   :limit 1})
+   :limit (sql/inline 1)})
 
 
 (defn lookup?

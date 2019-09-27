@@ -15,6 +15,12 @@
    [honeysql.core :as sql]
    [datomic-spec.core :as ds]))
 
+;; TODOs
+;; wildcard attributes
+;; limits for backrefs
+;; attr aliases
+;; redundant in subquery
+
 
 (defn- qb-filter*
   [qb mapping]
@@ -57,24 +63,22 @@
    attrs
    mapping]
 
-  ;; check e
-
-  (let [qb (qb/builder)
-        alias-sub :subquery
-        qb-sub (qb/builder)
-        qb-sub* (qb/builder)]
+  (let [alias-sub :subquery
+        qb        (qb/builder)
+        qb-sub    (qb/builder)
+        qb-sub*   (qb/builder)]
 
     (qb/add-select qb-sub :e)
-    (qb/add-from qb-sub :datoms4)
-    (qb-filter* qb-sub mapping)
+    (qb/add-from   qb-sub :datoms4)
+    (qb-filter*    qb-sub mapping)
 
     (qb/add-select qb-sub* :*)
-    (qb/add-from qb-sub* :datoms4)
-    (qb/add-where qb-sub* [:in :e (qb/->map qb-sub)])
+    (qb/add-from   qb-sub* :datoms4)
+    (qb/add-where  qb-sub* [:in :e (qb/->map qb-sub)])
 
-    (qb/add-from qb [(qb/->map qb-sub*) alias-sub])
-    (qb/add-select qb :e)
-    (qb/add-select qb [:e "db/id"])
+    (qb/add-from     qb [(qb/->map qb-sub*) alias-sub])
+    (qb/add-select   qb :e)
+    (qb/add-select   qb [:e "db/id"])
     (qb/add-group-by qb :e)
 
     (doseq [attr attrs]
@@ -99,7 +103,8 @@
          (map drop-nils))))
 
 
-(defn- pull-join [p1 p2 attr multiple?]
+(defn- pull-join
+  [p1 p2 attr multiple?]
 
   (let [grouped (group-by :db/id p2)
         getter (fn [e]
@@ -128,26 +133,21 @@
 
 (defn- find-links
   [pattern]
-  (not-empty
-   (reduce
-    (fn [result [tag node]]
-      (case tag
-        :attr
-        (if (am/-backref? node)
-          (assoc result node '[*])
-          result)
-        :map-spec
-        (merge result node)
-        result))
-    {}
-    pattern)))
+  (reduce
+   (fn [result [tag node]]
+     (case tag
+       :attr
+       (if (am/-backref? node)
+         (assoc result node '[*])
+         result)
+       :map-spec
+       (merge result node)
+       result))
+   {}
+   pattern))
 
 
-;; help with guessing attributes
-;; limits
-
-
-(defn smart-getter
+(defn- smart-getter
   [attr]
   (fn [node]
     (-> node
@@ -157,7 +157,8 @@
               (:e node)
               node)))))
 
-(defn pull-join-backref
+
+(defn- pull-join-backref
   [p1 p2 attr]
 
   (let [attr-normal (am/backref->ref attr)
@@ -166,7 +167,8 @@
     (for [p p1]
       (assoc p attr (get grouped (:e p))))))
 
-(defn process-backref
+
+(defn- process-backref
   [{:as scope :keys [am]}
    p attr pattern]
 
@@ -179,7 +181,7 @@
     (pull-join-backref p p2 attr)))
 
 
-(defn process-ref
+(defn- process-ref
   [{:as scope :keys [am]}
    p attr pattern]
   (let [[_ pattern] pattern
@@ -233,8 +235,7 @@
      links)))
 
 
-
-(defn prepare-es
+(defn- prepare-es
   [{:as scope :keys [am qp sg]}
    es]
   (doall
