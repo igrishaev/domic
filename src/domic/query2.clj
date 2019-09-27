@@ -407,8 +407,8 @@
                         (for [arg args]
                           (let [[tag arg] arg]
                             (case tag
-                              :var ;; check if bound
-                              (vm/get-val vm arg)))))]
+                              :var
+                              (vm/get-val! vm arg)))))]
         (qb/add-select qb [call alias]))
 
       :var
