@@ -151,13 +151,24 @@
 ;; limits
 
 
+(defn smart-getter
+  [attr]
+  (fn [node]
+    (-> node
+        (get attr)
+        (as-> node
+            (if (map? node)
+              (:e node)
+              node)))))
+
 (defn pull-join-backref
   [p1 p2 attr]
 
   (let [attr-normal (am/backref->ref attr)
-        grouped (group-by #(-> % attr-normal :db/id) p2)]
+        getter (smart-getter attr-normal)
+        grouped (group-by getter p2)]
     (for [p p1]
-      (assoc p attr (get grouped (:db/id p))))))
+      (assoc p attr (get grouped (:e p))))))
 
 (defn process-backref
   [{:as scope :keys [am]}
@@ -177,9 +188,14 @@
    p attr pattern]
   (let [[_ pattern] pattern
         multiple? (am/multiple? am attr)
-        es (seq (if multiple?
-                  (mapcat attr p)
-                  (map attr p)))]
+
+        mapfn (if multiple? mapcat map)
+
+        es (->> p
+                (mapfn attr)
+                (remove nil?)
+                seq)]
+
     (if es
       (let [mapping {:e es}
             p2 (pull-parsed scope pattern mapping)]
@@ -204,9 +220,6 @@
                            attrs-extra
                            (when wc?
                              (resolve-attrs scope mapping))))
-
-        _ (when-not (seq attrs)
-            (error! "No attributes in the pattern: %s" pattern))
 
         links (find-links pattern)
 
