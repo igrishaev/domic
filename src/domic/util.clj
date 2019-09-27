@@ -23,6 +23,10 @@
         (keyword (str prefix num))))))
 
 
-(defn kw->str
-  [kword]
-  (-> kword str (subs 1)))
+(defn drop-nils
+  [map]
+  (let [map* (transient {})]
+    (doseq [[k v] map]
+      (when (some? v)
+        (assoc! map* k v)))
+    (persistent! map*)))

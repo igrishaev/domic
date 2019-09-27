@@ -2,22 +2,18 @@
   (:require
    [clojure.spec.alpha :as s]
 
-   [domic.util :refer [kw->str]]
+   [domic.util :refer
+    [kw->str drop-nils sym-generator]]
    [domic.error :refer [error!]]
    [domic.query-builder :as qb]
    [domic.query-params :as qp]
    [domic.attr-manager :as am]
    [domic.engine :as en]
+   [domic.sql-helpers :refer
+    [->cast lookup->sql lookup?]]
 
    [honeysql.core :as sql]
    [datomic-spec.core :as ds]))
-
-
-(defn ->cast
-  [field type]
-  (if (= type :text)
-    field
-    (sql/call :cast field (sql/inline type))))
 
 
 (defn- qb-filter*
@@ -33,7 +29,7 @@
 
 
 (defn- resolve-attrs
-  [{:as scope :keys [en]}
+  [{:as scope :keys [en qp]}
    mapping]
 
   (let [qb (qb/builder)
@@ -48,7 +44,8 @@
     (qb/add-from qb* :datoms4)
     (qb/add-where qb* [:in :e (qb/->map qb)])
 
-    (let [query (qb/format qb*)
+    (let [params (qp/get-params qp)
+          query (qb/format qb* params)
           result (en/query en query {:as-arrays? true})]
 
       (->> (rest result)
@@ -56,14 +53,13 @@
 
 
 (defn- -pull
-  [{:as scope :keys [en am sg]}
+  [{:as scope :keys [en am sg qp]}
    attrs
    mapping]
 
   ;; check e
 
   (let [qb (qb/builder)
-        qp (qp/params)
         alias-sub :subquery
         qb-sub (qb/builder)
         qb-sub* (qb/builder)]
@@ -97,8 +93,10 @@
         (qp/add-param qp attr attr)
         (qb/add-select qb [clause (kw->str attr)])))
 
-    (let [params (qp/get-params qp)]
-      (en/query en (qb/format qb params)))))
+    (->> (qp/get-params qp)
+         (qb/format qb)
+         (en/query en)
+         (map drop-nils))))
 
 
 (defn- pull-join [p1 p2 attr multiple?]
@@ -217,6 +215,7 @@
         ;; attrs-wc (filter am/attr-wildcard? attrs-found)
 
         attrs (set (concat attrs-found
+                           [:db/ident]
                            attrs-extra
                            (when wc?
                              (resolve-attrs scope mapping))))
@@ -234,10 +233,37 @@
      links)))
 
 
+
+(defn prepare-es
+  [{:as scope :keys [am qp sg]}
+   es]
+  (doall
+   (for [e es]
+     (if (lookup? e)
+       (let [[a v] e
+
+             alias-a (sg "a")
+             alias-v (sg "v")
+
+             param-a (sql/param alias-a)
+             param-v (sql/param alias-v)
+
+             pg-type (am/get-pg-type am a)]
+
+         (qp/add-param qp alias-a a)
+         (qp/add-param qp alias-v v)
+
+         (lookup->sql param-a param-v pg-type))
+       e))))
+
+
 (defn pull-many
   [scope
    pattern es]
-  (let [mapping {:e es}
+  (let [scope (assoc scope
+                     :qp (qp/params)
+                     :sg (sym-generator))
+        mapping {:e (prepare-es scope es)}
         parsed (s/conform ::ds/pattern pattern)]
     (if (= parsed ::s/invalid)
       (error! "Wrong pull pattern: %s" pattern)

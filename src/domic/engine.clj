@@ -1,6 +1,7 @@
 (ns domic.engine
   (:require
-   [clojure.java.jdbc :as jdbc])
+   [clojure.java.jdbc :as jdbc]
+   [domic.util :refer [kw->str]])
   (:import
    [clojure.lang Keyword Symbol]
    org.postgresql.util.PGobject
@@ -43,12 +44,12 @@
   Symbol
 
   (sql-value [val]
-    (->pg-obj "text" (-> val str)))
+    (->pg-obj "text" (str val)))
 
   Keyword
 
   (sql-value [val]
-    (->pg-obj "text" (-> val str (subs 1)))))
+    (->pg-obj "text" (kw->str val))))
 
 
 (extend-protocol jdbc/IResultSetReadColumn
