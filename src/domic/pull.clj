@@ -13,6 +13,13 @@
    [datomic-spec.core :as ds]))
 
 
+(defn ->cast
+  [field type]
+  (if (= type :text)
+    field
+    (sql/call :cast field (sql/inline type))))
+
+
 (defn- qb-filter*
   [qb mapping]
   (doseq [[field value] mapping]
@@ -81,11 +88,10 @@
             attr-param (sql/param attr)
             pg-type    (am/get-pg-type am attr)
             agg        (if multiple? :array_agg :max)
-            cast       (partial sql/call :cast)
 
             clause
             (sql/raw
-             [(sql/call agg (cast :v (sql/inline pg-type)))
+             [(sql/call agg (->cast :v pg-type))
               " filter "
               {:where [:and [:= :a (sql/param attr)]]}])]
 
@@ -185,30 +191,26 @@
   [{:as scope :keys [am]}
    pattern
    mapping
-   & attr-extra]
+   & attrs-extra]
 
   (let [wc? (some (fn [x]
                     (some-> x first (= :wildcard)))
                   pattern)
 
-        attrs-raw (find-attrs pattern)
+        attrs-found (->> (find-attrs pattern)
+                         (filter (complement am/-backref?)))
 
-        attrs (when-not wc?
-                (->> attrs-raw
-                     (filter (complement am/-backref?))))
+        attrs (set (concat attrs-found
+                           attrs-extra
+                           (when wc?
+                             (resolve-attrs scope mapping))))
 
-        attrs-final
-        (cond
-          wc? (resolve-attrs scope mapping)
-          attrs attrs
-          :else
-          (error! "No attributes in the pattern: %s" pattern))
-
-        attrs-final (set (concat attrs-final attr-extra))
+        _ (when-not (seq attrs)
+            (error! "No attributes in the pattern: %s" pattern))
 
         links (find-links pattern)
 
-        p1 (-pull scope attrs-final mapping)]
+        p1 (-pull scope attrs mapping)]
 
     (reduce
      (fn [p [attr pattern]]
@@ -219,19 +221,10 @@
      links)))
 
 
-(defn ->cast
-  [field type]
-  (sql/call :cast field (sql/inline type)))
-
-
 (defn pull
   [scope
    pattern e]
   (let [mapping {:e e}
-
-        ;; mapping {:a (kw->str :release/artist)
-        ;;          (->cast :v :integer) [1 2 3 4 5]}
-
         parsed (s/conform ::ds/pattern pattern)]
     (if (= parsed ::s/invalid)
       (error! "Wrong pull pattern: %s" pattern)
