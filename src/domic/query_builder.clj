@@ -9,6 +9,8 @@
 
   (debug [this] [this params])
 
+  (set-limit [this limit])
+
   (set-distinct [this])
 
   (where-stack-up [this op])
@@ -78,6 +80,9 @@
      sql]
 
   IQueryBuilder
+
+  (set-limit [this limit]
+    (swap! sql assoc :limit limit))
 
   (debug [this]
     (debug this {}))

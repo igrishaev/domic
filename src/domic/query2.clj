@@ -12,7 +12,7 @@
             [domic.var-manager :as vm]
             [domic.query-builder :as qb]
             [domic.db-manager :as dm]
-            [domic.util :refer [join zip]]
+            [domic.util :refer [zip]]
             [domic.db :as db]
             [domic.query-params :as qp]
             [domic.attr-manager :as am]
@@ -44,7 +44,11 @@
 
 (def query
   '
-  [:find ?r
+  [:find ;; [?r ...]  ?r .
+
+   ?r
+   ;; [?r ?name]
+
    :in $ ?name
    :where
    [$ ?r :release/year 1985]
@@ -59,7 +63,7 @@
   (add-pattern-db [db scope expression]))
 
 
-(defn find-attr
+(defn- find-attr
   [field-elem-pairs]
   (when-let [elem (->> field-elem-pairs
                        (into {})
@@ -160,7 +164,7 @@
             (error-case! elem*)))))))
 
 
-(defn discover-db
+(defn- discover-db
   [{:keys [sg]} var data]
   (cond
     (db/pg? data) data
@@ -173,7 +177,7 @@
     (error! "Wrong database: %s" var)))
 
 
-(defn process-in
+(defn- process-in
   [{:as scope :keys [vm qb dm sg qp]}
    inputs params]
 
@@ -246,7 +250,7 @@
               (vm/bind! vm input _p))))))))
 
 
-(defn add-pattern
+(defn- add-pattern
   [{:as scope :keys [dm]} expression]
   (let [{:keys [src-var]} expression
         db (if src-var
@@ -255,7 +259,7 @@
     (add-pattern-db db scope expression)))
 
 
-(defn add-predicate
+(defn- add-predicate
   [scope expression]
   (let [{:keys [qb vm sg qp]} scope
         {:keys [expr]} expression
@@ -282,7 +286,7 @@
       (qb/add-where qb [pred (first args*) (rest args*)]))))
 
 
-(defn add-clause
+(defn- add-clause
   [scope clause]
 
   (let [[tag expression] clause]
@@ -299,7 +303,7 @@
       (add-pattern scope expression))))
 
 
-(defn process-not-clause
+(defn- process-not-clause
   [{:as scope :keys [qb]} clause]
 
   (let [qb* (qb/builder)
@@ -316,7 +320,7 @@
     (qb/add-where qb [:not {:exists (qb/->map qb*)}])))
 
 
-(defn process-or-clause
+(defn- process-or-clause
   [{:as scope :keys [qb]} clause]
   (qb/with-where-or qb
     (let [{:keys [clauses]} clause]
@@ -335,7 +339,7 @@
                   (add-clause scope clause))))))))))
 
 
-(defn process-where
+(defn- process-where
   [{:as scope :keys [qb]} clauses]
   (doseq [clause clauses]
     (let [[tag clause] clause]
@@ -357,7 +361,7 @@
     (= tag :agg)))
 
 
-(defn add-find-elem
+(defn- add-find-elem
   [{:keys [vm qb sg]} find-elem*]
   (let [[tag find-elem] find-elem*
         alias (sg "f")]
@@ -383,17 +387,23 @@
     alias))
 
 
-(defn process-find
-  [{:as scope :keys [vm qb]} find-spec]
+(defn- get-find-type
+  [find-parsed]
+  (let [[tag _] find-parsed]
+    tag))
+
+
+(defn- process-find
+  [{:as scope :keys [vm qb]}
+   find-spec]
+
   (let [[tag find-spec] find-spec
 
         find-elem-list
         (case tag
 
-          ;; query meta info
-
-          ;; https://github.com/alexanderkiel/datomic-spec/issues/6
           ;; :tuple
+          ;; https://github.com/alexanderkiel/datomic-spec/issues/6
 
           (:coll :scalar)
           (let [{:keys [elem]} find-spec]
@@ -412,7 +422,7 @@
           (qb/add-group-by qb alias))))))
 
 
-(defn as-vector
+(defn- as-vector
   [{:as scope :keys [en]}
    query]
   (rest (en/query en query {:as-arrays? true})))
@@ -435,7 +445,14 @@
         {:keys [find in where]} query-parsed
         {:keys [inputs]} in
         {:keys [spec]} find
-        {:keys [clauses]} where]
+        {:keys [clauses]} where
+
+        find-type (get-find-type spec)]
+
+    (case find-type
+      :scalar
+      (qb/set-limit qb (sql/inline 1))
+      nil)
 
     (process-in scope inputs query-inputs)
     (process-where scope clauses)
@@ -446,8 +463,13 @@
     (qb/debug qb (qp/get-params qp))
 
     (let [params (qp/get-params qp)
-          query (qb/format qb params)]
-      (as-vector scope query))))
+          query (qb/format qb params)
+          result (as-vector scope query)]
+
+      (case find-type
+        :coll (map first result)
+        :scalar (ffirst result)
+        result))))
 
 
 (defn- parse-query
