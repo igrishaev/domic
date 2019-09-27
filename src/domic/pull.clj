@@ -130,7 +130,7 @@
    pattern))
 
 
-(defn- find-links
+(defn- find-backrefs
   [pattern]
   (reduce
    (fn [result [tag node]]
@@ -219,6 +219,22 @@
    attrs))
 
 
+(def wc-parsed
+  (s/conform ::ds/pattern '[*]))
+
+
+(defn find-components
+  [{:as scope :keys [am]}
+   attrs]
+  (reduce
+   (fn [result attr]
+     (if (am/component? am attr)
+       (assoc result attr wc-parsed)
+       result))
+   {}
+   attrs))
+
+
 (defn- pull-parsed
   [{:as scope :keys [am]}
    pattern
@@ -244,7 +260,9 @@
                            (when wc?
                              (resolve-attrs scope mapping))))
 
-        links (find-links pattern)
+        components (find-components scope attrs)
+        backrefs (find-backrefs pattern)
+        deps (merge components backrefs)
 
         p1 (-pull scope attrs mapping)]
 
@@ -254,7 +272,7 @@
          (process-backref scope p attr pattern)
          (process-ref scope p attr pattern)))
      p1
-     links)))
+     deps)))
 
 
 (defn- prepare-es
@@ -309,7 +327,8 @@
 
      {:db/ident       :release/artist
       :db/valueType   :db.type/ref
-      :db/cardinality :db.cardinality/one}
+      :db/cardinality :db.cardinality/many
+      :db/isComponent true}
 
      {:db/ident       :release/year
       :db/valueType   :db.type/integer

@@ -73,6 +73,8 @@
 
 (defprotocol IAttrManager
 
+  (component? [this attr])
+
   (by-wildcard [this attr])
 
   (is-ref? [this attr])
@@ -88,6 +90,11 @@
     [attr-map]
 
   IAttrManager
+
+  (component? [this attr]
+    (some-> attr-map
+            (get attr)
+            :db/isComponent))
 
   (by-wildcard [this attr]
     (let [a-ns (namespace attr)
