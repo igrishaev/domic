@@ -2,6 +2,7 @@
   (:require
    [clojure.spec.alpha :as s]
 
+   [domic.runtime :refer [resolve-lookup!]]
    [domic.util :refer
     [kw->str drop-nils sym-generator]]
    [domic.error :refer [error!]]
@@ -10,7 +11,7 @@
    [domic.attr-manager :as am]
    [domic.engine :as en]
    [domic.sql-helpers :refer
-    [->cast lookup->sql lookup?]]
+    [->cast lookup?]]
 
    [honeysql.core :as sql]
    [datomic-spec.core :as ds]))
@@ -281,20 +282,7 @@
   (doall
    (for [e es]
      (if (lookup? e)
-       (let [[a v] e
-
-             alias-a (sg "a")
-             alias-v (sg "v")
-
-             param-a (sql/param alias-a)
-             param-v (sql/param alias-v)
-
-             pg-type (am/get-pg-type am a)]
-
-         (qp/add-param qp alias-a a)
-         (qp/add-param qp alias-v v)
-
-         (lookup->sql param-a param-v pg-type))
+       (resolve-lookup! scope e)
        e))))
 
 

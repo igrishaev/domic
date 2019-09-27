@@ -244,7 +244,7 @@
 
             :bind-scalar
             (let [value (if (lookup? param)
-                          (resolve-lookup scope param)
+                          (resolve-lookup! scope param)
                           param)]
               (let [_a (sg (name input))
                     _p (sql/param _a)]

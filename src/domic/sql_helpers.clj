@@ -11,16 +11,6 @@
     (sql/call :cast field (sql/inline type))))
 
 
-(defn lookup->sql
-  [a v type]
-  {:select [:e]
-   :from [:datoms4]
-   :where [:and
-           [:= :a a]
-           [:= (->cast :v type) v]]
-   :limit (sql/inline 1)})
-
-
 (defn lookup?
   [node]
   (and (vector? node)
