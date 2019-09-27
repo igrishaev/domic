@@ -16,7 +16,6 @@
    [datomic-spec.core :as ds]))
 
 ;; TODOs
-;; wildcard attributes
 ;; limits for backrefs
 ;; attr aliases
 ;; redundant in subquery
@@ -201,6 +200,25 @@
       p)))
 
 
+(def conj* (fnil conj []))
+
+
+(defn- split-attrs
+  [attrs]
+  (reduce
+   (fn [result attr]
+     (let [path (cond
+                  (am/-backref? attr)
+                  :backrefs
+                  (am/attr-wildcard? attr)
+                  :wildcards
+                  :else
+                  :normals)]
+       (update result path conj* attr)))
+   {}
+   attrs))
+
+
 (defn- pull-parsed
   [{:as scope :keys [am]}
    pattern
@@ -211,13 +229,17 @@
                     (some-> x first (= :wildcard)))
                   pattern)
 
-        attrs-found (->> (find-attrs pattern)
-                         (filter (complement am/-backref?)))
+        attrs-found (find-attrs pattern)
 
-        ;; attrs-wc (filter am/attr-wildcard? attrs-found)
+        {:keys [normals wildcards backrefs]}
+        (split-attrs attrs-found)
 
-        attrs (set (concat attrs-found
-                           [:db/ident]
+        attrs-wc (mapcat #(am/by-wildcard am %)
+                         wildcards)
+
+        attrs (set (concat [:db/ident]
+                           normals
+                           attrs-wc
                            attrs-extra
                            (when wc?
                              (resolve-attrs scope mapping))))
