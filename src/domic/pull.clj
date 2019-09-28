@@ -16,10 +16,10 @@
    [honeysql.core :as sql]
    [datomic-spec.core :as ds]))
 
+
 ;; TODOs
 ;; limits for backrefs
 ;; attr aliases
-;; redundant in subquery
 
 
 (defn- qb-filter*
@@ -38,24 +38,27 @@
   [{:as scope :keys [en qp]}
    mapping]
 
-  (let [qb (qb/builder)
-        qb* (qb/builder)]
+  (let [sub? (some-> mapping keys set (= #{:e}))
+        qb (qb/builder)]
 
-    (qb-filter* qb mapping)
+    (qb/add-select qb :a)
+    (qb/add-from   qb :datoms4)
 
-    (qb/add-select qb :e)
-    (qb/add-from qb :datoms4)
+    (if sub?
 
-    (qb/add-select qb* :a)
-    (qb/add-from qb* :datoms4)
-    (qb/add-where qb* [:in :e (qb/->map qb)])
+      (let [qb-sub (qb/builder)]
+        (qb-filter*    qb-sub mapping)
+        (qb/add-select qb-sub :e)
+        (qb/add-from   qb-sub :datoms4)
+        (qb/add-where  qb [:in :e (qb/->map qb-sub)]))
 
-    (let [params (qp/get-params qp)
-          query (qb/format qb* params)
-          result (en/query en query {:as-arrays? true})]
+      (qb-filter* qb mapping))
 
-      (->> (rest result)
-           (map (comp keyword first))))))
+    (->> (qp/get-params qp)
+         (qb/format qb)
+         (en/query en)
+         rest
+         (map (comp keyword :a)))))
 
 
 (defn- -pull
@@ -181,14 +184,11 @@
    p attr pattern]
   (let [[_ pattern] pattern
         multiple? (am/multiple? am attr)
-
         mapfn (if multiple? mapcat map)
-
         es (->> p
                 (mapfn attr)
                 (remove nil?)
                 seq)]
-
     (if es
       (let [mapping {:e es}
             p2 (pull-parsed scope pattern mapping)]
