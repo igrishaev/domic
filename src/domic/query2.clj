@@ -44,17 +44,20 @@
 
 (def query
   '
-  [:find ?r ?y ?name ?y1 ?y2 ?y3 ?y4
+  [:find ?r ?y ?name ;; ?y1 ?y2 ?y3 ?y4
    :in $ ?a
    :where
    [$ ?r :release/artist ?a]
    [$ ?r :release/year ?y]
    [$ ?a :artist/name ?name]
-   [(= ?y 1999)]
-   [(+ ?y 100) ?y1]
-   [(- ?y 100) ?y2]
-   [(* ?y 100) ?y3]
-   [(/ ?y 100) ?y4]
+   [(= ?y 1991)]
+
+   ;; [(in ?y 1985 1986 1987)]
+
+   ;; [(+ ?y 100) ?y1]
+   ;; [(- ?y 100) ?y2]
+   ;; [(* ?y 100) ?y3]
+   ;; [(/ ?y 100) ?y4]
    #_
    [(foo_bar ?y 1 2 3) ?y5]
 
@@ -277,21 +280,27 @@
 
         [pred-tag pred] pred
 
-        args* (for [arg args]
-                (let [[tag arg] arg]
-                  (case tag
-                    :var
-                    (vm/get-val! vm arg)
+        args* (vec
+               (for [arg args]
+                 (let [[tag arg] arg]
+                   (case tag
+                     :var
+                     (vm/get-val! vm arg)
 
-                    :cst
-                    (let [[tag arg] arg]
-                      (let [param (sg "param")]
-                        (qp/add-param qp param arg)
-                        (sql/param param))))))]
+                     :cst
+                     (let [[tag arg] arg]
+                       (let [param (sg "param")]
+                         (qp/add-param qp param arg)
+                         (sql/param param)))))))
+
+        pred-expr
+        (case pred
+          ;; :in [:in (first args*) (rest args*)]
+          (into [pred] args*))]
 
     (case pred-tag
       :sym
-      (qb/add-where qb (into [pred] args*)))))
+      (qb/add-where qb pred-expr))))
 
 
 (defn- add-function
@@ -518,6 +527,9 @@
          scope
          (parse-query query-list)
          args))
+
+#_
+(q _scope query (db/pg) [:db/ident :metallica])
 
 #_
 (do
