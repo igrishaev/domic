@@ -65,18 +65,13 @@
 
   (let [alias-sub (sg "sub")
         qb        (qb/builder)
-        qb-sub    (qb/builder)
-        qb-sub*   (qb/builder)]
+        qb-sub    (qb/builder)]
 
-    (qb/add-select qb-sub :e)
+    (qb/add-select qb-sub :*)
     (qb/add-from   qb-sub :datoms4)
     (qb-filter*    qb-sub mapping)
 
-    (qb/add-select qb-sub* :*)
-    (qb/add-from   qb-sub* :datoms4)
-    (qb/add-where  qb-sub* [:in :e (qb/->map qb-sub)])
-
-    (qb/add-from     qb [(qb/->map qb-sub*) alias-sub])
+    (qb/add-from     qb [(qb/->map qb-sub) alias-sub])
     (qb/add-select   qb :e)
     (qb/add-select   qb [:e "db/id"])
     (qb/add-group-by qb :e)
@@ -306,7 +301,9 @@
 
 
 #_
-(pull _scope '[:artist/*] [:db/ident :metallica])
+(do
+  (pull _scope '[:artist/*] [:db/ident :metallica])
+  (pull _scope '[* {:release/artist [*]}] [:db/ident :metallica]))
 
 #_
 (do
