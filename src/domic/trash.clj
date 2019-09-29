@@ -143,3 +143,12 @@
 ;;  :artist/album 2         ;; noop
 ;;  :artist/album 3         ;; insert
 ;;  }
+
+
+
+(clojure.java.jdbc/db-query-with-resultset _db "select '0'"
+                                             (fn [rs]
+                                               (.next rs)
+                                               (.getBoolean rs 1)
+                                               )
+                                             )

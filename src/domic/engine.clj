@@ -1,17 +1,35 @@
 (ns domic.engine
+  (:refer-clojure :exclude [update])
   (:require
    [clojure.java.jdbc :as jdbc]
-   [domic.util :refer [kw->str]])
+   [domic.util :refer [kw->str]]
+   [honeysql.core :as sql])
   (:import
    [clojure.lang Keyword Symbol]
    org.postgresql.util.PGobject
    org.postgresql.jdbc.PgArray))
 
 
+(defmacro with-tx
+  [binding & body]
+  (let [[en-tx en & tx-opt] binding]
+    `(let [db-spec# (:db-spec ~en)]
+       (jdbc/with-db-transaction
+         [tx-spec# db-spec# ~@tx-opt]
+         (let [~en-tx (assoc ~en :db-spec tx-spec#)]
+           ~@body)))))
+
+
 (defprotocol IEngine
+
+  (execute
+    [this sql-map]
+    [this sql-map params])
 
   (insert-multi
     [this table rows])
+
+  (query-rs [this query rs-fn])
 
   (query
     [this query]
@@ -23,8 +41,16 @@
 
   IEngine
 
-  (insert-multi [this table rows]
-    (jdbc/insert-multi! db-spec table rows))
+  (query-rs [this query rs-fn]
+    (jdbc/db-query-with-resultset db-spec query rs-fn))
+
+  (execute [this sql-map]
+    (execute this sql-map nil))
+
+  (execute [this sql-map params]
+    (jdbc/execute! db-spec
+                   (sql/format sql-map params)))
+
 
   (query [this query]
     (jdbc/query db-spec query))

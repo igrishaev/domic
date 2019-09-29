@@ -1,33 +1,30 @@
 (ns domic.transact
   (:require
 
-   ;; [clojure.spec.alpha :as s]
-
-   ;; [domic.runtime :refer [resolve-lookup!]]
    [domic.util :refer
-    [kw->str
-
-     ;; drop-nils sym-generator
-
-     ]]
-
+    [kw->str sym-generator]]
    [domic.error :refer [error!]]
-   ;; [domic.query-builder :as qb]
-   ;; [domic.query-params :as qp]
-
+   [domic.query-builder :as qb]
+   [domic.query-params :as qp]
    [domic.attr-manager :as am]
    [domic.engine :as en]
+   [domic.sql-helpers :refer [->cast]]
 
-   ;; [domic.sql-helpers :refer
-   ;;  [->cast lookup?]]
-
-   [honeysql.core :as sql]
-   ;; [datomic-spec.core :as ds]
-
-   ))
+   [honeysql.core :as sql]))
 
 
-(defn maps->list
+(def seq-name "_foo")
+
+
+(defn add-param
+  [qp value]
+  (let [alias (gensym "param")
+        param (sql/param alias)]
+    (qp/add-param qp alias value)
+    param))
+
+
+(defn- maps->list
   [maps]
   (let [result* (transient [])]
     (doseq [map maps]
@@ -40,75 +37,44 @@
 
 (defn- next-id
   [{:as scope :keys [en]}]
-  (let [query ["select nextval(?) as id" "_foo"]]
+  (let [query ["select nextval(?) as id" seq-name]]
     (-> (en/query en query)
         first
         :id)))
 
 
-#_
-(defn- map-new?
-  [mapping]
-  (not (some-> mapping :db/id)))
-
-
-(defn- map->e
-  [mapping]
-  (some-> mapping :db/id))
-
-
-#_
-(defn- map->rows
-  [e mapping t]
-  (for [[a v] mapping]
-    {:e e :a a :v v :t t}))
-
-
-#_
-(defn- process-maps-new
-  [scope
-   maps-new]
-  )
-
-
-(defn aaa
+(defn- find-new-vals
   [{:as scope :keys [en]}
    vals-old
    vals-new
    pg-type]
 
-  (let [foo {:select :v
-             :from [{:values [1 2 3]}]
-             :where [:not [:in :v [5 6 7]]]}])
+  (let [qb (qb/builder)
+        vals-cast (map (fn [v]
+                         (->cast v pg-type))
+                       vals-old)]
 
+    (qb/add-select qb :v)
+    (qb/add-from   qb [{:values (mapv vector vals-new)}
+                       (sql/inline "_(v)")])
+    (qb/add-where  qb [:not [:in :v vals-cast]])
 
-
-
-
-
-
-  )
-
+    (->> (qb/format qb)
+         (en/query en)
+         (map :v)
+         set)))
 
 
 (defn transact
   [{:as scope :keys [en am]}
    mappings]
 
-  ;; with transaction
+  (let [qp (qp/params)
+        add-param* (partial add-param qp)
 
-  (let [t (next-id scope)
-
-        temp->e (fn [_]
-                  (next-id scope))
-
-        #_
-        (let [cache (atom {})]
-          (fn [temp-e]
-            (or (get @cache temp-e)
-                (let [id (next-id scope)]
-                  (swap! cache assoc temp-e id)
-                  id))))
+        to-insert* (transient [])
+        to-delete* (transient [])
+        to-update* (transient [])
 
         lists (maps->list mappings)
 
@@ -128,64 +94,110 @@
                   :from [:datoms4]
                   :where [:and
                           [:in :e (set es)]
-                          [:in :a (set attrs)]]}))
+                          [:in :a (set attrs)]]}))]
 
-        datoms (when query
-                 (en/query en query))
+    (en/with-tx [en en]
 
-        datoms-ea
-        (->> datoms
-             (map (fn [datom]
-                    (update datom :a keyword)))
-             (group-by (juxt :e :a)))
+      (let [scope (assoc scope :en en)
 
-        _ (println (keys datoms-ea))
+            e-next (sql/call :nextval seq-name)
 
-        to-insert* (transient [])
-        to-delete* (transient [])
-        to-update* (transient [])]
+            t (next-id scope)
 
-    (doseq [[op e a v] lists]
-      (case op
+            datoms (when query
+                     (en/query en query))
 
-        ;; :db/retract
-        ;; (conj! to-delete* )
+            datoms-ea
+            (->> datoms
+                 (map (fn [datom]
+                        (update datom :a keyword)))
+                 (group-by (juxt :e :a)))]
 
-        :db/add
-        (cond
+        (doseq [[op e a v] lists]
+          (case op
 
-          ;; todo inline nextval
-          (string? e)
-          (let [vm (if (am/multiple? am a)
-                     v [v])]
-            (doseq [v* vm]
-              (let [row {:e (temp->e e) :a a :v v* :t t}]
-                (conj! to-insert* row))))
+            ;; :db/retract
+            ;; (conj! to-delete* )
 
-          (int? e)
-          (if-let [datoms* (get datoms-ea [e a])]
+            :db/add
+            (cond
 
-            (if (am/multiple? am a)
+              (string? e)
+              (let [vm (if (am/multiple? am a)
+                         v [v])]
+                (doseq [v* vm]
+                  (let [row {:e e-next
+                             :a (add-param* a)
+                             :v (add-param* v*)
+                             :t t}]
+                    (conj! to-insert* row))))
 
-              (let [vm v]
-                1
+              (int? e)
+              (if-let [datoms* (get datoms-ea [e a])]
 
-                #_
-                (conj! to-update* {:id id :v v}))
+                (if (am/multiple? am a)
 
-              (let [[{:keys [id]}] datoms*]
-                (conj! to-update* {:id id :v v})))
+                  (let [vals-old (doall (for [datom datoms*]
+                                          (:v datom)))
+                        vals-new v
+                        pg-type (am/get-pg-type am a)
 
-            (error! "Entity %s not found!" e))
+                        vals* (find-new-vals
+                               scope vals-old vals-new pg-type)]
 
-          :else
-          (error! "Wrong entity type: %s" e))))
+                    (doseq [v* vals*]
+                      (let [row {:e e-next
+                                 :a (add-param* a)
+                                 :v (add-param* v*)
+                                 :t t}]
+                        (conj! to-insert* row))))
 
-    (persistent! to-insert*)
-    #_(persistent! to-update*)
+                  (let [[{:keys [id]}] datoms*]
+                    (conj! to-update* {:id id
+                                       :v (add-param* v)
+                                       :t t})))
 
-    #_
-    (en/insert-multi en :datoms4 rows-new)))
+                (error! "Entity %s not found!" e))
+
+              :else
+              (error! "Wrong entity type: %s" e))))
+
+        (let [params (qp/get-params qp)
+
+              to-insert (-> to-insert*
+                            persistent!
+                            not-empty)
+
+              to-update (-> to-update*
+                            persistent!
+                            not-empty)
+
+              to-delete (-> to-delete*
+                            persistent!
+                            not-empty)]
+
+          ;; insert
+          (when to-insert
+            (en/execute en {:insert-into :datoms4
+                            :columns [:e :a :v :t]
+                            :values (map (juxt :e :a :v :t) to-insert)}
+                        params))
+
+          ;; update
+          (when to-update
+            (doseq [{:keys [id v]} to-update]
+              (en/execute en {:update :datoms4
+                              :set {:v v}
+                              :where [:= :id id]}
+                          params)))
+
+          ;; delete
+          (when to-delete
+            (en/execute en {:delete [:datoms4]
+                            :where [:in :id to-delete]}
+                        params)))
+
+        nil))))
 
 #_
 (do
@@ -202,7 +214,7 @@
 
      {:db/ident       :release/year
       :db/valueType   :db.type/integer
-      :db/cardinality :db.cardinality/many}
+      :db/cardinality :db.cardinality/one}
 
      {:db/ident       :release/tag
       :db/valueType   :db.type/string

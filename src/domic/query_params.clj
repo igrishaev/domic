@@ -1,4 +1,6 @@
-(ns domic.query-params)
+(ns domic.query-params
+  (:requre
+   [honeysql.core :as sql]))
 
 
 (defprotocol IQueryParams
