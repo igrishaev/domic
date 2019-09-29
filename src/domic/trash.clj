@@ -119,3 +119,27 @@
 
           ;; query (str "explain analyze " query)
           ;; pg-args (mapv en/->pg args)
+
+
+;; {:db/id 42
+;;  :artist/name "Old Name"
+;;  :artist/album [1 2]}
+
+;; {:db/id 42
+;;  :artist/name "New Name"
+;;  :artist/album [2 3]
+;; }
+
+;; {:db/id 42
+;;  :artist/name "New Name"
+;;  :artist/album [1 2 3]}
+
+;; :artist/album "1"
+;; :artist/album "2"
+
+;; {:db/id 42
+;;  :artist/year 1995       ;; insert
+;;  :artist/name "New Name" ;; update
+;;  :artist/album 2         ;; noop
+;;  :artist/album 3         ;; insert
+;;  }

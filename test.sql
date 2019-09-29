@@ -406,6 +406,16 @@ create table datoms4 (
     t integer not null
 );
 
+create table datoms5 (
+    id serial primary key,
+    e integer not null,
+    a text not null,
+    v text not null,
+    t integer not null,
+    unique (e,a)
+);
+
+
 insert into datoms4 (e, a, v, t)
 values
     (1, 'artist/name', 'Queen', 1),
@@ -415,6 +425,10 @@ values
     (4, 'release/artist', '3', 1),
     (4, 'release/year', '1986', 1)
 ;
+
+
+insert into datoms5 (e, a, v, t)
+values (1, 'artist/name', 'Queen', 1);
 
 
 

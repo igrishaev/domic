@@ -10,6 +10,9 @@
 
 (defprotocol IEngine
 
+  (insert-multi
+    [this table rows])
+
   (query
     [this query]
     [this query opt]))
@@ -19,6 +22,9 @@
     [db-spec]
 
   IEngine
+
+  (insert-multi [this table rows]
+    (jdbc/insert-multi! db-spec table rows))
 
   (query [this query]
     (jdbc/query db-spec query))
