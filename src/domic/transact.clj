@@ -10,10 +10,34 @@
    [domic.engine :as en]
    [domic.sql-helpers :refer [->cast]]
 
-   [honeysql.core :as sql]))
+   [honeysql.core :as sql])
+
+  (:import java.sql.ResultSet)
+
+  )
 
 
 (def seq-name "_foo")
+
+
+(defn pull*
+  [{:as scope :keys [en]}]
+  (en/query-rs en "select * from datoms4 limit 10"
+               (fn [^ResultSet rs]
+
+                 (.next rs)
+
+                 {:e (.getLong rs "e")
+                  :a (keyword (.getString rs "a"))
+                  :v 1 ;; (.getLong rs "v)
+                  :t (.getLong rs "t")}
+
+                 #_
+                 (while (.next rs)
+                   {:e (.getLong rs 2)
+                    :a (keyword (.getString rs 3))
+                    :v 1 ;; (.getLong rs 2)
+                    :t (.getLong rs 5)}))))
 
 
 (defn add-param
