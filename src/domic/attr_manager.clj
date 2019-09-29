@@ -1,7 +1,29 @@
 (ns domic.attr-manager
   (:require
    [clojure.string :as str]
-   [domic.error :refer [error!]]))
+   [domic.error :refer [error!]])
+  (:import java.sql.ResultSet))
+
+
+(defmulti rs->clj
+  (fn [valueType rs index]
+    valueType))
+
+
+(defmethod rs->clj :db.type/string
+  [_ ^ResultSet rs ^long index]
+  (.getString rs index))
+
+
+(defmethod rs->clj :db.type/ref
+  [_ ^ResultSet rs ^long index]
+  (.getLong rs index))
+
+
+(defmethod rs->clj :db.type/integer
+  [_ ^ResultSet rs ^long index]
+  (.getInt rs index))
+
 
 (def attr-defaults
 

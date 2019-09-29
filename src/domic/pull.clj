@@ -14,7 +14,9 @@
     [->cast lookup?]]
 
    [honeysql.core :as sql]
-   [datomic-spec.core :as ds]))
+   [datomic-spec.core :as ds])
+
+  (:import java.sql.ResultSet))
 
 
 ;; TODOs
@@ -298,6 +300,50 @@
   [scope
    pattern e]
   (first (pull-many scope pattern [e])))
+
+
+(defn rs->datoms
+  [{:as scope :keys [am]}]
+  (fn [^ResultSet rs]
+    (let [result* (transient [])]
+      (while (.next rs)
+        (let [attr (keyword (.getString rs 3))
+              attr-type (am/get-db-type am attr)
+              row {:id (.getLong rs 1)
+                   :e  (.getLong rs 2)
+                   :a  attr
+                   :v  (am/rs->clj attr-type rs 4)
+                   :t  (.getLong rs 5)}]
+          (conj! result* row)))
+      (persistent! result*))))
+
+
+(defn pull*
+  [{:as scope :keys [en]}
+   & [elist alist]]
+
+  (let [qb (qb/builder)
+        qp (qp/params)
+
+        ->param (fn [v]
+                  (let [alias (gensym)
+                        param (sql/param alias)]
+                    (qp/add-param qp alias v)
+                    param))]
+
+    (qb/add-select qb :*)
+    (qb/add-from qb :datoms4)
+
+    (when elist
+      (qb/add-where qb [:in :e (mapv ->param elist)]))
+
+    (when alist
+      (qb/add-where qb [:in :a (mapv ->param alist)]))
+
+    (en/query-rs en
+                 (->> (qp/get-params qp)
+                      (qb/format qb))
+                 (rs->datoms scope))))
 
 
 #_
