@@ -88,6 +88,20 @@
 
             t (rand-int 999999999)] ;; todo
 
+        ;; process tx functions
+        (doseq [[func & args] tx-fns]
+
+          (case func
+
+            :db/retractEntity
+            (let [[e] args]
+              1)
+
+            :db/cas
+            (let [[e a v v-new] args]
+              2)))
+
+        ;; process add/retract
         (doseq [[op e a v] datoms]
           (case op
 
