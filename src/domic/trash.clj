@@ -146,9 +146,70 @@
 
 
 
-(clojure.java.jdbc/db-query-with-resultset _db "select '0'"
-                                             (fn [rs]
-                                               (.next rs)
-                                               (.getBoolean rs 1)
-                                               )
-                                             )
+(clojure.java.jdbc/db-query-with-resultset
+ _db "select '0'"
+ (fn [rs]
+   (.next rs)
+   (.getBoolean rs 1)
+   )
+ )
+
+
+(defn- next-id
+  [{:as scope :keys [en]}]
+  (let [query ["select nextval(?) as id" seq-name]]
+    (-> (en/query en query)
+        first
+        :id)))
+
+(defn- maps->list
+  [maps]
+  (let [result* (transient [])]
+    (doseq [map maps]
+      (let [e (or (:db/id map)
+                  (str (gensym "e")))]
+        (doseq [[a v] (dissoc map :db/id)]
+          (conj! result* [:db/add e a v]))))
+    (persistent! result*)))
+
+
+#_
+(defn parse-tx-data [tx-data]
+  (s/conform ::ds/tx-data tx-data))
+
+#_
+(parse-tx-data
+ [[:db/add 1 :foo 42]
+  [:db/retract 1 :foo 42]
+  {:foo/bar 42}
+  [:db/func 1 2 3 4]])
+
+#_
+[[:assertion {:op :db/add :eid 1 :attr :foo :val 42}]
+ [:retraction {:op :db/retract :eid 1 :attr :foo :val 42}]
+ [:map-form #:foo{:bar 42}]
+ [:transact-fn-call {:fn :db/func :args [1 2 3 4]}]]
+
+
+#_
+(clojure.pprint/pprint
+ (prepare-tx-data
+  _scope
+  [[:db/add 1 :foo 42]
+   [:db/retract 1 :foo 42]
+   {:db/id 666
+    :foo/bar 42
+    :foo/ggggggg "sdfsdf"
+    :release/year ["a" "b" "c"]}
+   [:db/func 1 2 3 4]]))
+
+#_
+{:datoms
+ [[:db/add 1 :foo 42]
+  [:db/retract 1 :foo 42]
+  [:db/add 666 :foo/bar 42]
+  [:db/add 666 :foo/ggggggg "sdfsdf"]
+  [:db/add 666 :release/year "a"]
+  [:db/add 666 :release/year "b"]
+  [:db/add 666 :release/year "c"]],
+ :tx-fns [[:db/func 1 2 3 4]]}

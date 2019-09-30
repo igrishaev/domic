@@ -1,66 +1,22 @@
 (ns domic.transact
   (:require
-
    [clojure.set :as set]
-   [clojure.spec.alpha :as s]
 
-   [domic.util :refer
-    [kw->str sym-generator]]
    [domic.error :refer [error!]]
-   [domic.query-builder :as qb]
    [domic.query-params :as qp]
    [domic.attr-manager :as am]
    [domic.engine :as en]
-
-   [domic.pull :refer [pull*]]
-
-   [domic.sql-helpers :refer [->cast]]
-
-   [datomic-spec.core :as ds]
-   [honeysql.core :as sql]))
+   [domic.pull2 :refer [pull*]]))
 
 
-(def seq-name "_foo")
+(defn- temp-id [] (str (gensym "e")))
+
+(def temp-id? string?)
+
+(def real-id? int?)
 
 
-(defn- next-id
-  [{:as scope :keys [en]}]
-  (let [query ["select nextval(?) as id" seq-name]]
-    (-> (en/query en query)
-        first
-        :id)))
-
-
-(defn- maps->list
-  [maps]
-  (let [result* (transient [])]
-    (doseq [map maps]
-      (let [e (or (:db/id map)
-                  (str (gensym "e")))]
-        (doseq [[a v] (dissoc map :db/id)]
-          (conj! result* [:db/add e a v]))))
-    (persistent! result*)))
-
-
-#_
-(defn parse-tx-data [tx-data]
-  (s/conform ::ds/tx-data tx-data))
-
-#_
-(parse-tx-data
- [[:db/add 1 :foo 42]
-  [:db/retract 1 :foo 42]
-  {:foo/bar 42}
-  [:db/func 1 2 3 4]])
-
-#_
-[[:assertion {:op :db/add :eid 1 :attr :foo :val 42}]
- [:retraction {:op :db/retract :eid 1 :attr :foo :val 42}]
- [:map-form #:foo{:bar 42}]
- [:transact-fn-call {:fn :db/func :args [1 2 3 4]}]]
-
-
-(defn prepare-tx-data
+(defn- prepare-tx-data
   [{:as scope :keys [am]}
    tx-data]
   (let [datoms* (transient [])
@@ -79,7 +35,7 @@
 
         (map? tx-node)
         (let [e (or (:db/id tx-node)
-                    (str (gensym "e")))]
+                    (temp-id))]
           (doseq [[a v] (dissoc tx-node :db/id)]
             (if (am/multiple? am a)
               (doseq [v* v]
@@ -91,29 +47,6 @@
 
     {:datoms (persistent! datoms*)
      :tx-fns (persistent! tx-fns*)}))
-
-#_
-(clojure.pprint/pprint
- (prepare-tx-data
-  _scope
-  [[:db/add 1 :foo 42]
-   [:db/retract 1 :foo 42]
-   {:db/id 666
-    :foo/bar 42
-    :foo/ggggggg "sdfsdf"
-    :release/year ["a" "b" "c"]}
-   [:db/func 1 2 3 4]]))
-
-#_
-{:datoms
- [[:db/add 1 :foo 42]
-  [:db/retract 1 :foo 42]
-  [:db/add 666 :foo/bar 42]
-  [:db/add 666 :foo/ggggggg "sdfsdf"]
-  [:db/add 666 :release/year "a"]
-  [:db/add 666 :release/year "b"]
-  [:db/add 666 :release/year "c"]],
- :tx-fns [[:db/func 1 2 3 4]]}
 
 
 (defn transact
@@ -131,10 +64,10 @@
         (prepare-tx-data scope tx-data)
 
         elist
-        (for [[_ e] datoms :when (int? e)] e)
+        (for [[_ e] datoms :when (real-id? e)] e)
 
         alist
-        (for [[_ _ a] datoms] (kw->str a))]
+        (for [[_ _ a] datoms] a)]
 
     (en/with-tx [en en]
 
@@ -153,7 +86,7 @@
                             (swap! cache assoc e-tmp e-new)
                             e-new))))
 
-            t (next-id scope)]
+            t (rand-int 999999999)] ;; todo
 
         (doseq [[op e a v] datoms]
           (case op
@@ -171,7 +104,7 @@
             :db/add
             (cond
 
-              (string? e)
+              (temp-id? e)
               (let [vm (if (am/multiple? am a)
                          v [v])]
                 (doseq [v* vm]
@@ -181,7 +114,7 @@
                              :t t}]
                     (conj! to-insert* row))))
 
-              (int? e)
+              (real-id? e)
               (if-let [p* (get p-ea [e a])]
 
                 (if (am/multiple? am a)
@@ -225,7 +158,8 @@
           (when to-insert
             (en/execute en {:insert-into :datoms4
                             :columns [:e :a :v :t]
-                            :values (map (juxt :e :a :v :t) to-insert)}
+                            :values
+                            (map (juxt :e :a :v :t) to-insert)}
                         params))
 
           ;; update
@@ -238,7 +172,7 @@
 
           ;; delete
           (when to-delete
-            (en/execute en {:delete [:datoms4]
+            (en/execute en {:delete-from :datoms4
                             :where [:in :id to-delete]}
                         params)))
 
