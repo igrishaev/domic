@@ -9,6 +9,12 @@
    [domic.pull2 :refer [pull*]]))
 
 
+;; todo
+;; resolve lookups
+;; entity ids for sqlite?
+;; write log
+
+
 (defn- temp-id [] (str (gensym "e")))
 
 (def temp-id? string?)
@@ -94,11 +100,11 @@
           (case func
 
             :db/retractEntity
-            (let [[e] args]
+            (let [[e] args] ;; todo
               1)
 
             :db/cas
-            (let [[e a v v-new] args]
+            (let [[e a v v-new] args] ;; todo
               2)))
 
         ;; process add/retract
