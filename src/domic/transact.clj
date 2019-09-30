@@ -83,7 +83,7 @@
             e-get (let [cache (atom {})]
                     (fn [e-tmp]
                       (or (get @cache e-tmp)
-                          (let [e-new (rand-int 999999999)]
+                          (let [e-new (rand-int 999999999)] ;; todo
                             (swap! cache assoc e-tmp e-new)
                             e-new))))
 
@@ -92,8 +92,16 @@
         (doseq [[op e a v] lists]
           (case op
 
-            ;; :db/retract
-            ;; (conj! to-delete* )
+            :db/retract
+            (if-let [p* (get p-ea [e a])]
+
+              (let [ids (for [{:keys [id v*]} p*
+                              :when (= v v*)]
+                          id)]
+                (doseq [id ids]
+                  (conj! to-delete* id)))
+
+              (error! "Entity %s not found!" e))
 
             :db/add
             (cond
