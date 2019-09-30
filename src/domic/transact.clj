@@ -1,6 +1,8 @@
 (ns domic.transact
   (:require
 
+   [clojure.set :as set]
+
    [domic.util :refer
     [kw->str sym-generator]]
    [domic.error :refer [error!]]
@@ -8,6 +10,9 @@
    [domic.query-params :as qp]
    [domic.attr-manager :as am]
    [domic.engine :as en]
+
+   [domic.pull :refer [pull*]]
+
    [domic.sql-helpers :refer [->cast]]
 
    [honeysql.core :as sql]))
@@ -43,28 +48,6 @@
         :id)))
 
 
-(defn- find-new-vals
-  [{:as scope :keys [en]}
-   vals-old
-   vals-new
-   pg-type]
-
-  (let [qb (qb/builder)
-        vals-cast (map (fn [v]
-                         (->cast v pg-type))
-                       vals-old)]
-
-    (qb/add-select qb :v)
-    (qb/add-from   qb [{:values (mapv vector vals-new)}
-                       (sql/inline "_(v)")])
-    (qb/add-where  qb [:not [:in :v vals-cast]])
-
-    (->> (qb/format qb)
-         (en/query en)
-         (map :v)
-         set)))
-
-
 (defn transact
   [{:as scope :keys [en am]}
    mappings]
@@ -78,40 +61,33 @@
 
         lists (maps->list mappings)
 
-        es
+        elist
         (for [[_ e a v] lists
               :when (int? e)]
           e)
 
-        attrs
+        alist
         (for [[_ e a v] lists]
-          (kw->str a))
-
-        query (when (and (not-empty es)
-                         (not-empty attrs))
-                (sql/format
-                 {:select [:*]
-                  :from [:datoms4]
-                  :where [:and
-                          [:in :e (set es)]
-                          [:in :a (set attrs)]]}))]
+          (kw->str a))]
 
     (en/with-tx [en en]
 
       (let [scope (assoc scope :en en)
 
-            e-next (sql/call :nextval seq-name)
+            p (when (and (not-empty elist)
+                         (not-empty alist))
+                (pull* scope elist alist))
 
-            t (next-id scope)
+            p-ea (group-by (juxt :e :a) p)
 
-            datoms (when query
-                     (en/query en query))
+            e-get (let [cache (atom {})]
+                    (fn [e-tmp]
+                      (or (get @cache e-tmp)
+                          (let [e-new (rand-int 999999999)]
+                            (swap! cache assoc e-tmp e-new)
+                            e-new))))
 
-            datoms-ea
-            (->> datoms
-                 (map (fn [datom]
-                        (update datom :a keyword)))
-                 (group-by (juxt :e :a)))]
+            t (next-id scope)]
 
         (doseq [[op e a v] lists]
           (case op
@@ -126,33 +102,29 @@
               (let [vm (if (am/multiple? am a)
                          v [v])]
                 (doseq [v* vm]
-                  (let [row {:e e-next
+                  (let [row {:e (e-get e)
                              :a (add-param* a)
                              :v (add-param* v*)
                              :t t}]
                     (conj! to-insert* row))))
 
               (int? e)
-              (if-let [datoms* (get datoms-ea [e a])]
+              (if-let [p* (get p-ea [e a])]
 
                 (if (am/multiple? am a)
 
-                  (let [vals-old (doall (for [datom datoms*]
-                                          (:v datom)))
-                        vals-new v
-                        pg-type (am/get-pg-type am a)
+                  (let [vals-old (set (map :v p*))
+                        vals-new (set v)
+                        vals-add (set/difference vals-new vals-old)]
 
-                        vals* (find-new-vals
-                               scope vals-old vals-new pg-type)]
-
-                    (doseq [v* vals*]
-                      (let [row {:e e-next
+                    (doseq [v-add vals-add]
+                      (let [row {:e e
                                  :a (add-param* a)
-                                 :v (add-param* v*)
+                                 :v (add-param* v-add)
                                  :t t}]
                         (conj! to-insert* row))))
 
-                  (let [[{:keys [id]}] datoms*]
+                  (let [[{:keys [id]}] p*]
                     (conj! to-update* {:id id
                                        :v (add-param* v)
                                        :t t})))
@@ -198,6 +170,17 @@
                         params)))
 
         nil))))
+
+
+#_
+(do
+
+  (transact _scope
+            [{:db/id 336943376
+              :release/artist 999
+              ;; :release/year 333
+              ;; :release/tag ["dd0" "bbb0"]
+              }]))
 
 #_
 (do

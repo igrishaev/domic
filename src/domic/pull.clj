@@ -302,20 +302,44 @@
   (first (pull-many scope pattern [e])))
 
 
+(defn rs->datom
+  [{:as scope :keys [am]}
+   ^ResultSet rs]
+  (let [attr (keyword (.getString rs 3))
+        attr-type (am/get-db-type am attr)]
+    {:id (.getLong rs 1)
+     :e  (.getLong rs 2)
+     :a  attr
+     :v  (am/rs->clj attr-type rs 4)
+     :t  (.getLong rs 5)}))
+
+
 (defn rs->datoms
-  [{:as scope :keys [am]}]
+  [scope]
   (fn [^ResultSet rs]
     (let [result* (transient [])]
       (while (.next rs)
-        (let [attr (keyword (.getString rs 3))
-              attr-type (am/get-db-type am attr)
-              row {:id (.getLong rs 1)
-                   :e  (.getLong rs 2)
-                   :a  attr
-                   :v  (am/rs->clj attr-type rs 4)
-                   :t  (.getLong rs 5)}]
-          (conj! result* row)))
+        (conj! result* (rs->datom scope rs)))
       (persistent! result*))))
+
+
+(def conj-set (fnil conj #{}))
+
+
+(defn rs->maps
+  [{:as scope :keys [am]}]
+  (fn [^ResultSet rs]
+    (loop [next? (.next rs)
+           result {}]
+      (if next?
+        (let [{:as row :keys [e a v]} (rs->map scope rs)
+              m? (am/multiple? am a)]
+          (recur (.next rs)
+                 (-> (if m?
+                       (update-in result [e a] conj-set v)
+                       (assoc-in result [e a] v))
+                     (assoc-in [e :db/id] e))))
+        result))))
 
 
 (defn pull*
@@ -349,7 +373,12 @@
 #_
 (do
   (pull _scope '[:artist/*] [:db/ident :metallica])
-  (pull _scope '[* {:release/artist [*]}] [:db/ident :metallica]))
+  (pull _scope '[* {:release/artist [*]}] [:db/ident :metallica])
+
+  (clojure.pprint/pprint
+   (pull* _scope
+          [99998 99999 177]
+          [:release/year :release/artist :db/ident])))
 
 #_
 (do
