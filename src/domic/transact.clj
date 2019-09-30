@@ -2,6 +2,7 @@
   (:require
 
    [clojure.set :as set]
+   [clojure.spec.alpha :as s]
 
    [domic.util :refer
     [kw->str sym-generator]]
@@ -15,18 +16,19 @@
 
    [domic.sql-helpers :refer [->cast]]
 
+   [datomic-spec.core :as ds]
    [honeysql.core :as sql]))
 
 
 (def seq-name "_foo")
 
 
-(defn add-param
-  [qp value]
-  (let [alias (gensym "param")
-        param (sql/param alias)]
-    (qp/add-param qp alias value)
-    param))
+(defn- next-id
+  [{:as scope :keys [en]}]
+  (let [query ["select nextval(?) as id" seq-name]]
+    (-> (en/query en query)
+        first
+        :id)))
 
 
 (defn- maps->list
@@ -40,35 +42,99 @@
     (persistent! result*)))
 
 
-(defn- next-id
-  [{:as scope :keys [en]}]
-  (let [query ["select nextval(?) as id" seq-name]]
-    (-> (en/query en query)
-        first
-        :id)))
+#_
+(defn parse-tx-data [tx-data]
+  (s/conform ::ds/tx-data tx-data))
+
+#_
+(parse-tx-data
+ [[:db/add 1 :foo 42]
+  [:db/retract 1 :foo 42]
+  {:foo/bar 42}
+  [:db/func 1 2 3 4]])
+
+#_
+[[:assertion {:op :db/add :eid 1 :attr :foo :val 42}]
+ [:retraction {:op :db/retract :eid 1 :attr :foo :val 42}]
+ [:map-form #:foo{:bar 42}]
+ [:transact-fn-call {:fn :db/func :args [1 2 3 4]}]]
+
+
+(defn prepare-tx-data
+  [{:as scope :keys [am]}
+   tx-data]
+  (let [datoms* (transient [])
+        tx-fns* (transient [])]
+
+    (doseq [tx-node tx-data]
+
+      (cond
+        (vector? tx-node)
+        (let [[op] tx-node]
+          (case op
+            (:db/add :db/retract)
+            (conj! datoms* tx-node)
+            ;; else
+            (conj! tx-fns* tx-node)))
+
+        (map? tx-node)
+        (let [e (or (:db/id tx-node)
+                    (str (gensym "e")))]
+          (doseq [[a v] (dissoc tx-node :db/id)]
+            (if (am/multiple? am a)
+              (doseq [v* v]
+                (conj! datoms* [:db/add e a v*]))
+              (conj! datoms* [:db/add e a v]))))
+
+        :else
+        (error! "Wrong tx-node: %s" tx-node)))
+
+    {:datoms (persistent! datoms*)
+     :tx-fns (persistent! tx-fns*)}))
+
+#_
+(clojure.pprint/pprint
+ (prepare-tx-data
+  _scope
+  [[:db/add 1 :foo 42]
+   [:db/retract 1 :foo 42]
+   {:db/id 666
+    :foo/bar 42
+    :foo/ggggggg "sdfsdf"
+    :release/year ["a" "b" "c"]}
+   [:db/func 1 2 3 4]]))
+
+#_
+{:datoms
+ [[:db/add 1 :foo 42]
+  [:db/retract 1 :foo 42]
+  [:db/add 666 :foo/bar 42]
+  [:db/add 666 :foo/ggggggg "sdfsdf"]
+  [:db/add 666 :release/year "a"]
+  [:db/add 666 :release/year "b"]
+  [:db/add 666 :release/year "c"]],
+ :tx-fns [[:db/func 1 2 3 4]]}
 
 
 (defn transact
   [{:as scope :keys [en am]}
-   mappings]
+   tx-data]
 
   (let [qp (qp/params)
-        add-param* (partial add-param qp)
+        add-alias (partial qp/add-alias qp)
 
         to-insert* (transient [])
         to-delete* (transient [])
         to-update* (transient [])
 
-        lists (maps->list mappings)
+        {:keys [datoms tx-fns]}
+        (prepare-tx-data scope tx-data)
 
         elist
-        (for [[_ e a v] lists
-              :when (int? e)]
-          e)
+        (for [[_ e] datoms :when (int? e)] e)
 
         alist
-        (for [[_ e a v] lists]
-          (kw->str a))]
+        (for [[_ _ a] datoms] (kw->str a))]
 
     (en/with-tx [en en]
 
@@ -89,13 +155,12 @@
 
             t (next-id scope)]
 
-        (doseq [[op e a v] lists]
+        (doseq [[op e a v] datoms]
           (case op
 
             :db/retract
             (if-let [p* (get p-ea [e a])]
-
-              (let [ids (for [{:keys [id v*]} p*
+              (let [ids (for [{:keys [id] v* :v} p*
                               :when (= v v*)]
                           id)]
                 (doseq [id ids]
@@ -111,8 +176,8 @@
                          v [v])]
                 (doseq [v* vm]
                   (let [row {:e (e-get e)
-                             :a (add-param* a)
-                             :v (add-param* v*)
+                             :a (add-alias a)
+                             :v (add-alias v*)
                              :t t}]
                     (conj! to-insert* row))))
 
@@ -127,14 +192,14 @@
 
                     (doseq [v-add vals-add]
                       (let [row {:e e
-                                 :a (add-param* a)
-                                 :v (add-param* v-add)
+                                 :a (add-alias a)
+                                 :v (add-alias v-add)
                                  :t t}]
                         (conj! to-insert* row))))
 
                   (let [[{:keys [id]}] p*]
                     (conj! to-update* {:id id
-                                       :v (add-param* v)
+                                       :v (add-alias v)
                                        :t t})))
 
                 (error! "Entity %s not found!" e))
@@ -205,7 +270,7 @@
 
      {:db/ident       :release/year
       :db/valueType   :db.type/integer
-      :db/cardinality :db.cardinality/one}
+      :db/cardinality :db.cardinality/many}
 
      {:db/ident       :release/tag
       :db/valueType   :db.type/string

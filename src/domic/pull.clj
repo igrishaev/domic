@@ -24,6 +24,10 @@
 ;; attr aliases
 
 
+(def wc-parsed
+  (s/conform ::ds/pattern '[*]))
+
+
 (defn- qb-filter*
   [qb mapping]
   (doseq [[field value] mapping]
@@ -158,6 +162,37 @@
               node)))))
 
 
+(def conj* (fnil conj []))
+
+
+(defn- split-attrs
+  [attrs]
+  (reduce
+   (fn [result attr]
+     (let [path (cond
+                  (am/-backref? attr)
+                  :backrefs
+                  (am/attr-wildcard? attr)
+                  :wildcards
+                  :else
+                  :normals)]
+       (update result path conj* attr)))
+   {}
+   attrs))
+
+
+(defn find-components
+  [{:as scope :keys [am]}
+   attrs]
+  (reduce
+   (fn [result attr]
+     (if (am/component? am attr)
+       (assoc result attr wc-parsed)
+       result))
+   {}
+   attrs))
+
+
 (defn- pull-join-backref
   [p1 p2 attr]
 
@@ -179,58 +214,6 @@
                  (->cast :v :integer) es}
         p2 (pull-parsed scope pattern mapping attr-normal)]
     (pull-join-backref p p2 attr)))
-
-
-(defn- process-ref
-  [{:as scope :keys [am]}
-   p attr pattern]
-  (let [[_ pattern] pattern
-        multiple? (am/multiple? am attr)
-        mapfn (if multiple? mapcat map)
-        es (->> p
-                (mapfn attr)
-                (remove nil?)
-                seq)]
-    (if es
-      (let [mapping {:e es}
-            p2 (pull-parsed scope pattern mapping)]
-        (pull-join p p2 attr multiple?))
-      p)))
-
-
-(def conj* (fnil conj []))
-
-
-(defn- split-attrs
-  [attrs]
-  (reduce
-   (fn [result attr]
-     (let [path (cond
-                  (am/-backref? attr)
-                  :backrefs
-                  (am/attr-wildcard? attr)
-                  :wildcards
-                  :else
-                  :normals)]
-       (update result path conj* attr)))
-   {}
-   attrs))
-
-
-(def wc-parsed
-  (s/conform ::ds/pattern '[*]))
-
-
-(defn find-components
-  [{:as scope :keys [am]}
-   attrs]
-  (reduce
-   (fn [result attr]
-     (if (am/component? am attr)
-       (assoc result attr wc-parsed)
-       result))
-   {}
-   attrs))
 
 
 (defn- pull-parsed
@@ -271,6 +254,23 @@
          (process-ref scope p attr pattern)))
      p1
      deps)))
+
+
+(defn- process-ref
+  [{:as scope :keys [am]}
+   p attr pattern]
+  (let [[_ pattern] pattern
+        multiple? (am/multiple? am attr)
+        mapfn (if multiple? mapcat map)
+        es (->> p
+                (mapfn attr)
+                (remove nil?)
+                seq)]
+    (if es
+      (let [mapping {:e es}
+            p2 (pull-parsed scope pattern mapping)]
+        (pull-join p p2 attr multiple?))
+      p)))
 
 
 (defn- prepare-es
@@ -326,13 +326,14 @@
 (def conj-set (fnil conj #{}))
 
 
+#_
 (defn rs->maps
   [{:as scope :keys [am]}]
   (fn [^ResultSet rs]
     (loop [next? (.next rs)
            result {}]
       (if next?
-        (let [{:as row :keys [e a v]} (rs->map scope rs)
+        (let [{:as row :keys [e a v]} (rs->datom scope rs)
               m? (am/multiple? am a)]
           (recur (.next rs)
                  (-> (if m?
@@ -348,21 +349,16 @@
 
   (let [qb (qb/builder)
         qp (qp/params)
-
-        ->param (fn [v]
-                  (let [alias (gensym)
-                        param (sql/param alias)]
-                    (qp/add-param qp alias v)
-                    param))]
+        add-alias (partial qp/add-alias qp)]
 
     (qb/add-select qb :*)
     (qb/add-from qb :datoms4)
 
     (when elist
-      (qb/add-where qb [:in :e (mapv ->param elist)]))
+      (qb/add-where qb [:in :e (mapv add-alias elist)]))
 
     (when alist
-      (qb/add-where qb [:in :a (mapv ->param alist)]))
+      (qb/add-where qb [:in :a (mapv add-alias alist)]))
 
     (en/query-rs en
                  (->> (qp/get-params qp)

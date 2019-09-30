@@ -27,4 +27,4 @@
 
 (defn as-field
   [coll field]
-  (alias-fields coll [field]))
+  (as-fields coll [field]))

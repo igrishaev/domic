@@ -1,9 +1,11 @@
 (ns domic.query-params
-  (:requre
+  (:require
    [honeysql.core :as sql]))
 
 
 (defprotocol IQueryParams
+
+  (add-alias [this value])
 
   (add-param [this field value])
 
@@ -14,6 +16,12 @@
     [params]
 
   IQueryParams
+
+  (add-alias [this value]
+    (let [alias (gensym "param")
+          param (sql/param alias)]
+      (add-param this alias value)
+      param))
 
   (add-param [this field value]
     (swap! params assoc field value))

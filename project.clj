@@ -25,9 +25,6 @@
   :repositories {"my.datomic.com" {:url "https://my.datomic.com/repo"
                                    :creds :gpg}}
 
-
-  :main ^:skip-aot domic.core
-
   :target-path "target/%s"
 
   :profiles {:uberjar {:aot :all}})
