@@ -31,28 +31,61 @@
       (persistent! result*))))
 
 
+(defn ->param []
+  (let [alias (gensym)]
+    [alias (sql/param alias)]))
+
+
 (defn pull*
   [{:as scope :keys [en]}
-   & [elist alist]]
+   & [elist alist rlist]]
 
   (let [params* (transient {})
-        params*add (adder params*)
+
+        e-params* (transient [])
+        a-params* (transient [])
+        r-params* (transient [])
 
         sql (sql/build :select :* :from :datoms4)
 
-        e-params (mapv params*add elist)
-        a-params (mapv params*add alist)
+        _
+        (doseq [e elist]
+          (let [[alias param] (->param)]
+            (conj! e-params* param)
+            (assoc! params* alias e)))
+
+        _
+        (doseq [a alist]
+          (let [[alias param] (->param)]
+            (conj! a-params* param)
+            (assoc! params* alias a)))
+
+        _
+        (doseq [r rlist]
+          (let [[alias param] (->param)]
+            (conj! r-params* param)
+            (assoc! params* alias r)))
+
+        e-params (-> e-params* persistent! not-empty)
+        a-params (-> a-params* persistent! not-empty)
+        r-params (-> r-params* persistent! not-empty)
 
         sql
         (cond-> sql
 
-          elist
+          e-params
           (h/merge-where [:in :e e-params])
 
-          alist
-          (h/merge-where [:in :a a-params]))
+          a-params
+          (h/merge-where [:in :a a-params])
 
-        query (sql/format sql (persistent! params*))]
+          r-params
+          (h/merge-where [:in
+                          (sql/call :cast :v :integer)
+                          r-params]))
+
+        params (persistent! params*)
+        query (sql/format sql params)]
 
     (en/query-rs en query (rs->datoms scope))))
 
