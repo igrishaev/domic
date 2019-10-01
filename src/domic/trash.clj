@@ -213,3 +213,7 @@
   [:db/add 666 :release/year "b"]
   [:db/add 666 :release/year "c"]],
  :tx-fns [[:db/func 1 2 3 4]]}
+
+
+        (mapcat attr pull-result)
+        (map attr pull-result))

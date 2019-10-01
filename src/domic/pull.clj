@@ -1,5 +1,6 @@
 (ns domic.pull
   (:require
+   [clojure.string :as str]
    [clojure.spec.alpha :as s]
 
    [domic.runtime :refer [resolve-lookup!]]
@@ -19,15 +20,207 @@
   (:import java.sql.ResultSet))
 
 
+(def conj-set (fnil conj #{}))
+
+
+(defn- rs->datom
+  [{:as scope :keys [am]}
+   ^ResultSet rs]
+  (let [attr (keyword (.getString rs 3))
+        attr-type (am/get-db-type am attr)]
+    {:e (.getLong rs 2)
+     :a attr
+     :v (am/rs->clj attr-type rs 4)
+     :t (.getLong rs 5)
+     :e_map (.getLong rs 6)}))
+
+
+(defn rs->maps
+  [{:as scope :keys [am]}]
+  (fn [^ResultSet rs]
+    (vals
+     (loop [next? (.next rs)
+            result {}]
+       (if next?
+         (let [{:as row :keys [e a v]} (rs->datom scope rs)]
+           (recur (.next rs)
+                  (-> (if (am/multiple? am a)
+                        (update-in result [e a] conj-set v)
+                        (assoc-in result [e a] v))
+                      (assoc-in [e :db/id] e))))
+         result)))))
+
+
+(defn- rs->datoms
+  [scope]
+  (fn [^ResultSet rs]
+    (let [result* (transient [])]
+      (while (.next rs)
+        (conj! result* (rs->datom scope rs)))
+      (persistent! result*))))
+
+
+(defn pull*
+  [{:as scope :keys [en]}
+   & [elist alist]]
+
+  (let [limit 1
+
+        qb (qb/builder)
+        qp (qp/params)
+        add-alias (partial qp/add-alias qp)]
+
+    (qb/add-select qb :*)
+    (qb/add-select qb [(sql/inline "row_number() over (partition by e)")
+                       :e_map])
+    (qb/add-from qb :datoms4)
+
+    (when elist
+      (qb/add-where qb [:in :e (mapv add-alias elist)]))
+
+    (when alist
+      (qb/add-where qb [:in :a (mapv add-alias alist)]))
+
+    (en/query-rs en
+                 (->> (qp/get-params qp)
+                      (qb/format qb))
+                 (rs->maps scope))))
+
+(def WC '*)
+
+
+(defn backref?
+  [attr]
+  (some-> attr name (str/starts-with? "_")))
+
+
+(defn split-pattern
+  [pattern]
+  (let [pattern (set pattern)
+
+        wc? (or (contains? pattern WC)
+                (contains? pattern (str WC)))
+
+        attrs* (transient #{})
+        refs* (transient {})
+        backrefs* (transient {})]
+
+    (doseq [pattern pattern]
+
+      (cond
+
+        (keyword? pattern)
+        (if (backref? pattern)
+          (assoc! backrefs* pattern [WC])
+          (conj! attrs* pattern))
+
+
+        (map? pattern)
+        (doseq [[attr pattern] pattern]
+          (if (backref? attr)
+            (assoc! backrefs* attr pattern)
+            (assoc! refs* attr pattern)))
+
+        (= pattern WC) nil
+        (= pattern (str WC)) nil
+
+        :else
+        (error! "Wrong pattern: %s" pattern)))
+
+    {:wc? wc?
+     :attrs (persistent! attrs*)
+     :refs (persistent! refs*)
+     :backrefs (persistent! backrefs*)}))
+
+
+
+(defn collect-foo
+  [{:as scope :keys [am]}
+   pull-result refs backrefs]
+
+  (let [elist* (transient #{})
+        pattern* (transient #{})]
+
+    (doseq [[attr pattern] refs]
+
+      (doseq [p pattern]
+        (conj! pattern* p))
+
+      (if (am/multiple? am attr)
+
+        (doseq [pull-row pull-result]
+          (doseq [{:db/keys [id]} (get pull-row attr)]
+            (conj! elist* id)))
+
+        (doseq [pull-row pull-result]
+          (let [{:db/keys [id]} (get pull-row attr)]
+            (conj! elist* id)))))
+
+    (doseq [[_attr pattern] backrefs]
+
+      (doseq [p pattern]
+        (conj! pattern* p))
+
+
+
+      )
+
+    {:elist (persistent! elist*)
+     :pattern (persistent! pattern*)}))
+
+
+(defn pull-many
+  [scope pattern ids]
+
+  (let [{:keys [wc? attrs refs backrefs]}
+        (split-pattern pattern)
+
+        _ (println wc? attrs refs backrefs)
+
+        pull-result
+        (pull* scope ids (when-not wc? attrs))
+
+        ;; ids (:fff/aaa :fff/bbb)
+        ;; pattern '[:aaa/test *]
+
+        ;; refs {:fff/aaa [:aaa/test]
+        ;;       :fff/bbb '[*]
+        ;;       }
+
+        ;; aaa {:fff/_aaa [:aaa/test]
+        ;;      :fff/_bbb '[*]
+        ;;      }
+        ]
+
+    pull-result
+
+    #_
+    (collect-foo scope pull-result refs backrefs)
+
+    )
+
+
+  #_
+  (let [attrs (find-attrs pattern)]
+    (pull* scope ids attrs)))
+
+
+(defn pull
+  [scope pattern id]
+  (first (pull-many scope pattern [id])))
+
+
+
 ;; TODOs
 ;; limits for backrefs
 ;; attr aliases
 
 
+#_
 (def wc-parsed
   (s/conform ::ds/pattern '[*]))
 
-
+#_
 (defn- qb-filter*
   [qb mapping]
   (doseq [[field value] mapping]
@@ -39,7 +232,7 @@
       :else
       (error! "Unknown filter"))))
 
-
+#_
 (defn- resolve-attrs
   [{:as scope :keys [en qp]}
    mapping]
@@ -66,7 +259,7 @@
          rest
          (map (comp keyword :a)))))
 
-
+#_
 (defn- -pull
   [{:as scope :keys [en am sg qp]}
    attrs
@@ -106,7 +299,7 @@
          (en/query en)
          (map drop-nils))))
 
-
+#_
 (defn- pull-join
   [p1 p2 attr multiple?]
 
@@ -121,7 +314,7 @@
     (for [p p1]
       (update p attr updater))))
 
-
+#_
 (defn- find-attrs
   [pattern]
   (reduce
@@ -134,7 +327,7 @@
    []
    pattern))
 
-
+#_
 (defn- find-backrefs
   [pattern]
   (reduce
@@ -150,7 +343,7 @@
    {}
    pattern))
 
-
+#_
 (defn- smart-getter
   [attr]
   (fn [node]
@@ -161,10 +354,10 @@
               (:e node)
               node)))))
 
-
+#_
 (def conj* (fnil conj []))
 
-
+#_
 (defn- split-attrs
   [attrs]
   (reduce
@@ -180,7 +373,7 @@
    {}
    attrs))
 
-
+#_
 (defn find-components
   [{:as scope :keys [am]}
    attrs]
@@ -192,7 +385,7 @@
    {}
    attrs))
 
-
+#_
 (defn- pull-join-backref
   [p1 p2 attr]
 
@@ -202,7 +395,7 @@
     (for [p p1]
       (assoc p attr (get grouped (:e p))))))
 
-
+#_
 (defn- process-backref
   [{:as scope :keys [am]}
    p attr pattern]
@@ -215,7 +408,7 @@
         p2 (pull-parsed scope pattern mapping attr-normal)]
     (pull-join-backref p p2 attr)))
 
-
+#_
 (defn- pull-parsed
   [{:as scope :keys [am]}
    pattern
@@ -255,7 +448,7 @@
      p1
      deps)))
 
-
+#_
 (defn- process-ref
   [{:as scope :keys [am]}
    p attr pattern]
@@ -272,7 +465,7 @@
         (pull-join p p2 attr multiple?))
       p)))
 
-
+#_
 (defn- prepare-es
   [{:as scope :keys [am qp sg]}
    es]
@@ -282,7 +475,7 @@
        (resolve-lookup! scope e)
        e))))
 
-
+#_
 (defn pull-many
   [scope
    pattern es]
@@ -295,7 +488,7 @@
       (error! "Wrong pull pattern: %s" pattern)
       (pull-parsed scope parsed mapping))))
 
-
+#_
 (defn pull
   [scope
    pattern e]

@@ -17,7 +17,7 @@
 
 (defmethod rs->clj :db.type/ref
   [_ ^ResultSet rs ^long index]
-  (.getLong rs index))
+  {:db/id (.getLong rs index)})
 
 
 (defmethod rs->clj :db.type/integer
