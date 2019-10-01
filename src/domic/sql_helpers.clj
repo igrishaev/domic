@@ -28,3 +28,12 @@
 (defn as-field
   [coll field]
   (as-fields coll [field]))
+
+
+(defn adder
+  [tr-map]
+  (fn [value]
+    (let [alias (gensym)
+          param (sql/param alias)]
+      (assoc! tr-map alias value)
+      param)))

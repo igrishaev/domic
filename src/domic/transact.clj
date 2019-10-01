@@ -2,17 +2,19 @@
   (:require
    [clojure.set :as set]
 
+   [domic.sql-helpers :refer [adder]]
    [domic.error :refer [error!]]
-   [domic.query-params :as qp]
    [domic.attr-manager :as am]
    [domic.engine :as en]
-   [domic.pull2 :refer [pull*]]))
+   [domic.pull2 :refer [pull*]]
+
+   [honeysql.core :as sql]))
 
 
 ;; todo
 ;; resolve lookups
-;; entity ids for sqlite?
 ;; write log
+;; fix t and e nextval
 
 
 (defn- temp-id [] (str (gensym "e")))
@@ -59,8 +61,11 @@
   [{:as scope :keys [en am]}
    tx-data]
 
-  (let [qp (qp/params)
-        add-alias (partial qp/add-alias qp)
+  (let [call-nextval
+        (sql/call :nextval "_foo")
+
+        params* (transient {})
+        params*add (adder params*)
 
         to-insert* (transient [])
         to-delete* (transient [])
@@ -84,13 +89,6 @@
                 (pull* scope elist alist))
 
             p-ea (group-by (juxt :e :a) p)
-
-            e-get (let [cache (atom {})]
-                    (fn [e-tmp]
-                      (or (get @cache e-tmp)
-                          (let [e-new (rand-int 999999999)] ;; todo
-                            (swap! cache assoc e-tmp e-new)
-                            e-new))))
 
             t (rand-int 999999999)] ;; todo
 
@@ -128,9 +126,9 @@
               (let [vm (if (am/multiple? am a)
                          v [v])]
                 (doseq [v* vm]
-                  (let [row {:e (e-get e)
-                             :a (add-alias a)
-                             :v (add-alias v*)
+                  (let [row {:e call-nextval
+                             :a (params*add a)
+                             :v (params*add v*)
                              :t t}]
                     (conj! to-insert* row))))
 
@@ -145,14 +143,14 @@
 
                     (doseq [v-add vals-add]
                       (let [row {:e e
-                                 :a (add-alias a)
-                                 :v (add-alias v-add)
+                                 :a (params*add a)
+                                 :v (params*add v-add)
                                  :t t}]
                         (conj! to-insert* row))))
 
                   (let [[{:keys [id]}] p*]
                     (conj! to-update* {:id id
-                                       :v (add-alias v)
+                                       :v (params*add v)
                                        :t t})))
 
                 (error! "Entity %s not found!" e))
@@ -160,7 +158,7 @@
               :else
               (error! "Wrong entity type: %s" e))))
 
-        (let [params (qp/get-params qp)
+        (let [params (persistent! params*)
 
               to-insert (-> to-insert*
                             persistent!
