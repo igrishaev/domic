@@ -4,8 +4,7 @@
    [domic.engine :as en]
    [domic.sql-helpers :refer [adder]]
 
-   [honeysql.core :as sql]
-   [honeysql.helpers :as h])
+   [honeysql.core :as sql])
   (:import
    java.sql.ResultSet))
 
@@ -31,58 +30,54 @@
       (persistent! result*))))
 
 
-(defn ->param []
-  (let [alias (gensym)]
-    [alias (sql/param alias)]))
-
-
 (defn pull*
   [{:as scope :keys [en]}
-   & [elist alist rlist]]
+   ids & [attrs]]
 
   (let [params* (transient {})
+        params*add (adder params*)
 
-        e-params* (transient [])
-        a-params* (transient [])
-        r-params* (transient [])
+        ids*   (mapv params*add ids)
+        attrs* (mapv params*add attrs)
 
-        sql (sql/build :select :* :from :datoms4)
+        sql (sql/build
+             :select :*
+             :from :datoms4
+             :where [:and
+                     [:in :e ids*]
+                     (when attrs [:in :a attrs*])])
 
-        _
-        (doseq [e elist]
-          (let [[alias param] (->param)]
-            (conj! e-params* param)
-            (assoc! params* alias e)))
+        params (persistent! params*)
+        query (sql/format sql params)]
 
-        _
-        (doseq [a alist]
-          (let [[alias param] (->param)]
-            (conj! a-params* param)
-            (assoc! params* alias a)))
+    (en/query-rs en query (rs->datoms scope))))
 
-        _
-        (doseq [r rlist]
-          (let [[alias param] (->param)]
-            (conj! r-params* param)
-            (assoc! params* alias r)))
 
-        e-params (-> e-params* persistent! not-empty)
-        a-params (-> a-params* persistent! not-empty)
-        r-params (-> r-params* persistent! not-empty)
+(defn pull*-refs
+  [{:as scope :keys [en]}
+   ids-ref attrs-ref & [attrs]]
 
-        sql
-        (cond-> sql
+  (let [params*    (transient {})
+        params*add (adder params*)
 
-          e-params
-          (h/merge-where [:in :e e-params])
+        ids-ref*   (mapv params*add ids-ref)
+        attrs-ref* (mapv params*add attrs-ref)
+        attrs*     (mapv params*add attrs)
 
-          a-params
-          (h/merge-where [:in :a a-params])
+        v-cast (sql/call :cast :v :integer)
 
-          r-params
-          (h/merge-where [:in
-                          (sql/call :cast :v :integer)
-                          r-params]))
+        sub (sql/build
+             :select :e
+             :from :datoms4
+             :where [:and
+                     [:in v-cast ids-ref*]
+                     [:in :a attrs-ref*]])
+
+        sql (sql/build
+             :select :* :from :datoms4
+             :where [:and
+                     [:in :e sub]
+                     (when attrs [:in :a attrs*])])
 
         params (persistent! params*)
         query (sql/format sql params)]
