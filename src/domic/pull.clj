@@ -110,28 +110,33 @@
   [{:as scope :keys [en]}
    ids & [attrs]]
 
-  (let [params* (transient {})
-        params*add (adder params*)
+  (when (seq ids)
 
-        ids*   (mapv params*add ids)
-        attrs* (mapv params*add attrs)
+    (let [params* (transient {})
+          params*add (adder params*)
 
-        sql (sql/build
-             :select :*
-             :from :datoms4
-             :where [:and
-                     [:in :e ids*]
-                     (when attrs [:in :a attrs*])])
+          ids*   (mapv params*add ids)
+          attrs* (mapv params*add attrs)
 
-        params (persistent! params*)
-        query (sql/format sql params)]
+          sql (sql/build
+               :select :*
+               :from :datoms4
+               :where [:and
+                       [:in :e ids*]
+                       (when (seq attrs)
+                         [:in :a attrs*])])
 
-    (en/query-rs en query (rs->maps scope))))
+          params (persistent! params*)
+          query (sql/format sql params)]
+
+      (en/query-rs en query (rs->maps scope)))))
 
 
 (defn pull*-refs
   [{:as scope :keys [en]}
    ids-ref attrs-ref & [attrs]]
+
+  (println "backrefs" ids-ref attrs-ref attrs)
 
   (let [params*    (transient {})
         params*add (adder params*)
@@ -183,6 +188,7 @@
                       (first (get p2* id)))))
         ]
     (for [p p1]
+      ;; todo check if got the result
       (update p attr updater))))
 
 
@@ -218,7 +224,6 @@
 
   (reduce
    (fn [p [_attr pattern]]
-
 
      (let [attr (am/backref->ref _attr)
            ids (map :db/id p)
