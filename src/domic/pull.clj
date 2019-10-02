@@ -153,48 +153,13 @@
              :select :* :from :datoms4
              :where [:and
                      [:in :e sub]
-                     (when attrs [:in :a attrs*])])
+                     (when (seq attrs)
+                       [:in :a attrs*])])
 
         params (persistent! params*)
         query (sql/format sql params)]
 
     (en/query-rs en query (rs->maps scope))))
-
-
-#_
-(defn collect-foo
-  [{:as scope :keys [am]}
-   pull-result refs backrefs]
-
-  (let [elist* (transient #{})
-        pattern* (transient #{})]
-
-    (doseq [[attr pattern] refs]
-
-      (doseq [p pattern]
-        (conj! pattern* p))
-
-      (if (am/multiple? am attr)
-
-        (doseq [pull-row pull-result]
-          (doseq [{:db/keys [id]} (get pull-row attr)]
-            (conj! elist* id)))
-
-        (doseq [pull-row pull-result]
-          (let [{:db/keys [id]} (get pull-row attr)]
-            (conj! elist* id)))))
-
-    (doseq [[_attr pattern] backrefs]
-
-      (doseq [p pattern]
-        (conj! pattern* p))
-
-
-
-      )
-
-    {:elist (persistent! elist*)
-     :pattern (persistent! pattern*)}))
 
 
 (defn pull-join
@@ -221,10 +186,42 @@
       (update p attr updater))))
 
 
+(defn pull-join-backref
+  [{:as scope :keys [am]}
+   p1 p2 _attr]
+
+  (println _attr)
+  (println p1)
+  (println p2)
+
+  (let [attr (am/backref->ref _attr)
+
+        ;; fff (group-by
+        ;;      (fn [{:keys [e a v]}]
+        ;;        [e (when (= a attr) (:db/id v))])
+        ;;      p2)
+
+        ;; _ (println fff)
+
+        ;; p2* (group-by (comp :db/id :v) p2)
+
+        ]
+
+    p1
+
+    #_
+    (concat p1 (for [[e [row]] p2*
+                     :when e]
+                 {:e e
+                  :a _attr
+                  :v row}))))
+
+
 (defn pull-connect
   [{:as scope :keys [am]}
    p refs* backrefs*]
 
+  #_
   (reduce
    (fn [p [attr pattern]]
      (let [ids (if (am/multiple? am attr)
@@ -239,23 +236,20 @@
    p
    refs*)
 
-  #_
   (reduce
    (fn [p [_attr pattern]]
 
-     #_
-     (let [ids [1 2 3]
 
-           {:keys [wc? attrs #_refs #_backrefs]}
+     (let [attr (am/backref->ref _attr)
+           ids (map :db/id p)
+
+           {:keys [wc? attrs refs backrefs]}
            (split-pattern pattern)
 
-           p2 (pull* scope ids (when-not wc? attrs))
+           p2 (pull*-refs scope ids [attr] attrs)
+           p* (pull-connect scope p2 refs backrefs)]
 
-           ])
-
-
-     #_
-     (pull-connect scope attr pattern))
+       (pull-join-backref scope p p* _attr)))
    p
    backrefs*)
 

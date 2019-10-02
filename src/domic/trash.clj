@@ -412,3 +412,38 @@
           (assoc! coll* key value))
         :get
         (persistent! coll*)))))
+
+
+(defn collect-foo
+  [{:as scope :keys [am]}
+   pull-result refs backrefs]
+
+  (let [elist* (transient #{})
+        pattern* (transient #{})]
+
+    (doseq [[attr pattern] refs]
+
+      (doseq [p pattern]
+        (conj! pattern* p))
+
+      (if (am/multiple? am attr)
+
+        (doseq [pull-row pull-result]
+          (doseq [{:db/keys [id]} (get pull-row attr)]
+            (conj! elist* id)))
+
+        (doseq [pull-row pull-result]
+          (let [{:db/keys [id]} (get pull-row attr)]
+            (conj! elist* id)))))
+
+    (doseq [[_attr pattern] backrefs]
+
+      (doseq [p pattern]
+        (conj! pattern* p))
+
+
+
+      )
+
+    {:elist (persistent! elist*)
+     :pattern (persistent! pattern*)}))
