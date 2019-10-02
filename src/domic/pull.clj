@@ -12,7 +12,7 @@
    [domic.attr-manager :as am]
    [domic.engine :as en]
    [domic.sql-helpers :refer
-    [->cast lookup?]]
+    [->cast lookup? adder]]
 
    [honeysql.core :as sql]
    [datomic-spec.core :as ds])
@@ -31,8 +31,7 @@
     {:e (.getLong rs 2)
      :a attr
      :v (am/rs->clj attr-type rs 4)
-     :t (.getLong rs 5)
-     :e_map (.getLong rs 6)}))
+     :t (.getLong rs 5)}))
 
 
 (defn rs->maps
@@ -59,32 +58,6 @@
         (conj! result* (rs->datom scope rs)))
       (persistent! result*))))
 
-
-(defn pull*
-  [{:as scope :keys [en]}
-   & [elist alist]]
-
-  (let [limit 1
-
-        qb (qb/builder)
-        qp (qp/params)
-        add-alias (partial qp/add-alias qp)]
-
-    (qb/add-select qb :*)
-    (qb/add-select qb [(sql/inline "row_number() over (partition by e)")
-                       :e_map])
-    (qb/add-from qb :datoms4)
-
-    (when elist
-      (qb/add-where qb [:in :e (mapv add-alias elist)]))
-
-    (when alist
-      (qb/add-where qb [:in :a (mapv add-alias alist)]))
-
-    (en/query-rs en
-                 (->> (qp/get-params qp)
-                      (qb/format qb))
-                 (rs->maps scope))))
 
 (def WC '*)
 
@@ -133,7 +106,62 @@
      :backrefs (persistent! backrefs*)}))
 
 
+(defn pull*
+  [{:as scope :keys [en]}
+   ids & [attrs]]
 
+  (let [params* (transient {})
+        params*add (adder params*)
+
+        ids*   (mapv params*add ids)
+        attrs* (mapv params*add attrs)
+
+        sql (sql/build
+             :select :*
+             :from :datoms4
+             :where [:and
+                     [:in :e ids*]
+                     (when attrs [:in :a attrs*])])
+
+        params (persistent! params*)
+        query (sql/format sql params)]
+
+    (en/query-rs en query (rs->maps scope))))
+
+
+(defn pull*-refs
+  [{:as scope :keys [en]}
+   ids-ref attrs-ref & [attrs]]
+
+  (let [params*    (transient {})
+        params*add (adder params*)
+
+        ids-ref*   (mapv params*add ids-ref)
+        attrs-ref* (mapv params*add attrs-ref)
+        attrs*     (mapv params*add attrs)
+
+        v-cast (sql/call :cast :v :integer)
+
+        sub (sql/build
+             :select :e
+             :from :datoms4
+             :where [:and
+                     [:in v-cast ids-ref*]
+                     [:in :a attrs-ref*]])
+
+        sql (sql/build
+             :select :* :from :datoms4
+             :where [:and
+                     [:in :e sub]
+                     (when attrs [:in :a attrs*])])
+
+        params (persistent! params*)
+        query (sql/format sql params)]
+
+    (en/query-rs en query (rs->maps scope))))
+
+
+#_
 (defn collect-foo
   [{:as scope :keys [am]}
    pull-result refs backrefs]
@@ -169,40 +197,77 @@
      :pattern (persistent! pattern*)}))
 
 
-(defn pull-many
-  [scope pattern ids]
+(defn pull-join
+  [{:as scope :keys [am]}
+   p1 p2 attr]
 
-  (let [{:keys [wc? attrs refs backrefs]}
-        (split-pattern pattern)
+  (println attr)
+  (println p1)
+  (println p2)
 
-        _ (println wc? attrs refs backrefs)
+  (let [
+        p2* (group-by :db/id p2)
 
-        pull-result
-        (pull* scope ids (when-not wc? attrs))
-
-        ;; ids (:fff/aaa :fff/bbb)
-        ;; pattern '[:aaa/test *]
-
-        ;; refs {:fff/aaa [:aaa/test]
-        ;;       :fff/bbb '[*]
-        ;;       }
-
-        ;; aaa {:fff/_aaa [:aaa/test]
-        ;;      :fff/_bbb '[*]
-        ;;      }
+        updater (if (am/multiple? am attr)
+                  (fn [refs]
+                    (let [ids (map :db/id refs)]
+                      (for [id ids]
+                        (first (get p2* id)))))
+                  (fn [ref]
+                    (let [{:db/keys [id]} ref]
+                      (first (get p2* id)))))
         ]
+    (for [p p1]
+      (update p attr updater))))
 
-    pull-result
 
-    #_
-    (collect-foo scope pull-result refs backrefs)
+(defn pull-connect
+  [{:as scope :keys [am]}
+   p refs* backrefs*]
 
-    )
-
+  (reduce
+   (fn [p [attr pattern]]
+     (let [ids (if (am/multiple? am attr)
+                 (->> (mapcat attr p)
+                      (map :db/id))
+                 (map (comp :db/id attr) p))
+           {:keys [wc? attrs refs backrefs]}
+           (split-pattern pattern)
+           p2 (pull* scope ids (when-not wc? attrs))
+           p* (pull-connect scope p2 refs backrefs)]
+       (pull-join scope p p* attr)))
+   p
+   refs*)
 
   #_
-  (let [attrs (find-attrs pattern)]
-    (pull* scope ids attrs)))
+  (reduce
+   (fn [p [_attr pattern]]
+
+     #_
+     (let [ids [1 2 3]
+
+           {:keys [wc? attrs #_refs #_backrefs]}
+           (split-pattern pattern)
+
+           p2 (pull* scope ids (when-not wc? attrs))
+
+           ])
+
+
+     #_
+     (pull-connect scope attr pattern))
+   p
+   backrefs*)
+
+  )
+
+
+(defn pull-many
+  [scope pattern ids]
+  (let [{:keys [wc? attrs refs backrefs]}
+        (split-pattern pattern)
+        p (pull* scope ids (when-not wc? attrs))]
+    (pull-connect scope p refs backrefs)))
 
 
 (defn pull
@@ -215,284 +280,6 @@
 ;; limits for backrefs
 ;; attr aliases
 
-
-#_
-(def wc-parsed
-  (s/conform ::ds/pattern '[*]))
-
-#_
-(defn- qb-filter*
-  [qb mapping]
-  (doseq [[field value] mapping]
-    (cond
-      (coll? value)
-      (qb/add-where qb [:in field value])
-      (some? value)
-      (qb/add-where qb [:= field value])
-      :else
-      (error! "Unknown filter"))))
-
-#_
-(defn- resolve-attrs
-  [{:as scope :keys [en qp]}
-   mapping]
-
-  (let [sub? (some-> mapping keys set (= #{:e}))
-        qb (qb/builder)]
-
-    (qb/add-select qb :a)
-    (qb/add-from   qb :datoms4)
-
-    (if sub?
-
-      (let [qb-sub (qb/builder)]
-        (qb-filter*    qb-sub mapping)
-        (qb/add-select qb-sub :e)
-        (qb/add-from   qb-sub :datoms4)
-        (qb/add-where  qb [:in :e (qb/->map qb-sub)]))
-
-      (qb-filter* qb mapping))
-
-    (->> (qp/get-params qp)
-         (qb/format qb)
-         (en/query en)
-         rest
-         (map (comp keyword :a)))))
-
-#_
-(defn- -pull
-  [{:as scope :keys [en am sg qp]}
-   attrs
-   mapping]
-
-  (let [alias-sub (sg "sub")
-        qb        (qb/builder)
-        qb-sub    (qb/builder)]
-
-    (qb/add-select qb-sub :*)
-    (qb/add-from   qb-sub :datoms4)
-    (qb-filter*    qb-sub mapping)
-
-    (qb/add-from     qb [(qb/->map qb-sub) alias-sub])
-    (qb/add-select   qb :e)
-    (qb/add-select   qb [:e "db/id"])
-    (qb/add-group-by qb :e)
-
-    (doseq [attr attrs]
-
-      (let [multiple?  (am/multiple? am attr)
-            attr-param (sql/param attr)
-            pg-type    (am/get-pg-type am attr)
-            agg        (if multiple? :array_agg :max)
-
-            clause
-            (sql/raw
-             [(sql/call agg (->cast :v pg-type))
-              " filter "
-              {:where [:and [:= :a (sql/param attr)]]}])]
-
-        (qp/add-param qp attr attr)
-        (qb/add-select qb [clause (kw->str attr)])))
-
-    (->> (qp/get-params qp)
-         (qb/format qb)
-         (en/query en)
-         (map drop-nils))))
-
-#_
-(defn- pull-join
-  [p1 p2 attr multiple?]
-
-  (let [grouped (group-by :db/id p2)
-        getter (fn [e]
-                 (first (get grouped e)))
-        updater (if multiple?
-                  (fn [es]
-                    (map getter es))
-                  getter)]
-
-    (for [p p1]
-      (update p attr updater))))
-
-#_
-(defn- find-attrs
-  [pattern]
-  (reduce
-   (fn [result node]
-     (let [[tag node] node]
-       (case tag
-         :attr (conj result node)
-         :map-spec (into result (keys node))
-         result)))
-   []
-   pattern))
-
-#_
-(defn- find-backrefs
-  [pattern]
-  (reduce
-   (fn [result [tag node]]
-     (case tag
-       :attr
-       (if (am/-backref? node)
-         (assoc result node '[*])
-         result)
-       :map-spec
-       (merge result node)
-       result))
-   {}
-   pattern))
-
-#_
-(defn- smart-getter
-  [attr]
-  (fn [node]
-    (-> node
-        (get attr)
-        (as-> node
-            (if (map? node)
-              (:e node)
-              node)))))
-
-#_
-(def conj* (fnil conj []))
-
-#_
-(defn- split-attrs
-  [attrs]
-  (reduce
-   (fn [result attr]
-     (let [path (cond
-                  (am/-backref? attr)
-                  :backrefs
-                  (am/attr-wildcard? attr)
-                  :wildcards
-                  :else
-                  :normals)]
-       (update result path conj* attr)))
-   {}
-   attrs))
-
-#_
-(defn find-components
-  [{:as scope :keys [am]}
-   attrs]
-  (reduce
-   (fn [result attr]
-     (if (am/component? am attr)
-       (assoc result attr wc-parsed)
-       result))
-   {}
-   attrs))
-
-#_
-(defn- pull-join-backref
-  [p1 p2 attr]
-
-  (let [attr-normal (am/backref->ref attr)
-        getter (smart-getter attr-normal)
-        grouped (group-by getter p2)]
-    (for [p p1]
-      (assoc p attr (get grouped (:e p))))))
-
-#_
-(defn- process-backref
-  [{:as scope :keys [am]}
-   p attr pattern]
-
-  (let [[_ pattern] pattern
-        attr-normal (am/backref->ref attr)
-        es (map :db/id p)
-        mapping {:a (kw->str attr-normal)
-                 (->cast :v :integer) es}
-        p2 (pull-parsed scope pattern mapping attr-normal)]
-    (pull-join-backref p p2 attr)))
-
-#_
-(defn- pull-parsed
-  [{:as scope :keys [am]}
-   pattern
-   mapping
-   & attrs-extra]
-
-  (let [wc? (some (fn [x]
-                    (some-> x first (= :wildcard)))
-                  pattern)
-
-        attrs-found (find-attrs pattern)
-
-        {:keys [normals wildcards backrefs]}
-        (split-attrs attrs-found)
-
-        attrs-wc (mapcat #(am/by-wildcard am %)
-                         wildcards)
-
-        attrs (set (concat [:db/ident]
-                           normals
-                           attrs-wc
-                           attrs-extra
-                           (when wc?
-                             (resolve-attrs scope mapping))))
-
-        components (find-components scope attrs)
-        backrefs (find-backrefs pattern)
-        deps (merge components backrefs)
-
-        p1 (-pull scope attrs mapping)]
-
-    (reduce
-     (fn [p [attr pattern]]
-       (if (am/-backref? attr)
-         (process-backref scope p attr pattern)
-         (process-ref scope p attr pattern)))
-     p1
-     deps)))
-
-#_
-(defn- process-ref
-  [{:as scope :keys [am]}
-   p attr pattern]
-  (let [[_ pattern] pattern
-        multiple? (am/multiple? am attr)
-        mapfn (if multiple? mapcat map)
-        es (->> p
-                (mapfn attr)
-                (remove nil?)
-                seq)]
-    (if es
-      (let [mapping {:e es}
-            p2 (pull-parsed scope pattern mapping)]
-        (pull-join p p2 attr multiple?))
-      p)))
-
-#_
-(defn- prepare-es
-  [{:as scope :keys [am qp sg]}
-   es]
-  (doall
-   (for [e es]
-     (if (lookup? e)
-       (resolve-lookup! scope e)
-       e))))
-
-#_
-(defn pull-many
-  [scope
-   pattern es]
-  (let [scope (assoc scope
-                     :qp (qp/params)
-                     :sg (sym-generator))
-        mapping {:e (prepare-es scope es)}
-        parsed (s/conform ::ds/pattern pattern)]
-    (if (= parsed ::s/invalid)
-      (error! "Wrong pull pattern: %s" pattern)
-      (pull-parsed scope parsed mapping))))
-
-#_
-(defn pull
-  [scope
-   pattern e]
-  (first (pull-many scope pattern [e])))
 
 
 #_
@@ -511,6 +298,10 @@
   (def _attrs
     [{:db/ident       :artist/name
       :db/valueType   :db.type/string
+      :db/cardinality :db.cardinality/one}
+
+     {:db/ident       :artist/release
+      :db/valueType   :db.type/ref
       :db/cardinality :db.cardinality/one}
 
      {:db/ident       :release/artist

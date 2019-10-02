@@ -184,7 +184,7 @@
           (when to-update
             (doseq [{:keys [id v]} to-update]
               (en/execute en {:update :datoms4
-                              :set {:v v}
+                              :set {:v v} ;; todo: set param
                               :where [:= :id id]}
                           params)))
 
