@@ -70,6 +70,7 @@
 
 
 
+#_
 (def query
   '
   [:find (pull ?r [*])
@@ -77,7 +78,25 @@
    :where
    [$ ?r :release/artist ?a]
    [$ ?r :release/year ?y]
-   [(= ?y 1999)]])
+
+   (not (not (not [(= ?y 1999)])))])
+
+(def query
+  '
+  [:find ?x
+   :in $ ?x
+   :where
+
+   [?e :artist/name "Queen"]
+
+   [(= ?x ?x)]
+
+   #_
+   (not [(= ?x ?x)]
+        [(= ?x ?x)]
+        (not [(= ?x ?x)])
+
+        )])
 
 
 
@@ -117,8 +136,13 @@
 
           attr (find-attr field-elem-pairs)
           pg-type (when attr
-                    (am/get-pg-type am attr))]
+                    (am/get-pg-type am attr))
 
+          where* (transient [:and])
+
+          ]
+
+      #_
       (qb/add-from qb [alias alias-layer])
 
       (doseq [[field elem*] field-elem-pairs]
@@ -139,17 +163,34 @@
                     param (sql/param alias-v)
                     where [:= alias-fq param]]
                 (qp/add-param qp alias-v v)
+
+                (conj! where* where)
+
+                #_
                 (qb/add-where qb where)))
 
             :var
             (if (vm/bound? vm elem)
               (let [where [:= alias-fq (vm/get-val vm elem)]]
+
+                (conj! where* where)
+
+                #_
+
                 (qb/add-where qb where))
               (vm/bind! vm elem alias-fq))
 
             :blank nil
 
-            (error-case! elem*))))))
+            (error-case! elem*))))
+
+      (qb/add-left-join qb [alias alias-layer] (persistent! where*))
+
+      [:is-not (sql/qualify alias-layer :id) nil]
+
+
+
+      ))
 
   DBTable
 
@@ -301,6 +342,7 @@
                (for [arg args]
                  (let [[tag arg] arg]
                    (case tag
+
                      :var
                      (vm/get-val! vm arg)
 
@@ -310,13 +352,12 @@
                          (qp/add-param qp param arg)
                          (sql/param param)))))))
 
-        pred-expr
-        (case pred
-          ;; :in [:in (first args*) (rest args*)]
-          (into [pred] args*))]
+        pred-expr (into [pred] args*)]
 
     (case pred-tag
       :sym
+      pred-expr
+      #_
       (qb/add-where qb pred-expr))))
 
 
@@ -356,18 +397,35 @@
   [scope clause]
   (let [[tag expression] clause]
     (case tag
-      :fn-expr
-      (add-function scope expression)
+      ;; :fn-expr
+      ;; (add-function scope expression)
       :pred-expr
       (add-predicate scope expression)
       :data-pattern
-      (add-pattern scope expression))))
+      (add-pattern scope expression)
 
+      )))
 
 #_
+{:op not,
+ :clauses [[:expression-clause
+            [:pred-expr {:expr {:pred [:sym =],
+                                :args [[:var ?y]
+                                       [:cst [:num 1999]]]}}]]]}
+#_
 (defn- process-not-clause
-  [{:as scope :keys [qb]} clause]
+  [{:as scope :keys [qb]}
+   clause]
 
+  (let [{:keys [clauses]} clause]
+    (doseq [clause clauses]
+      (let [[tag clause] clause]
+        (case tag
+          :expression-clause
+          (add-clause scope* clause)))))
+
+
+  #_
   (let [qb* (qb/builder)
         scope* (assoc scope :qb qb*)]
 
@@ -401,17 +459,56 @@
                   (add-clause scope clause))))))))))
 
 
+
+(defn- process-not-clause
+  [{:as scope :keys [qb]}
+   clause]
+
+  (let [{:keys [clauses]} clause
+        where-clauses* (transient [:and])]
+
+    (doseq [clause clauses]
+
+      (let [[tag clause] clause
+
+            where-clause
+            (case tag
+
+              :not-clause
+              (process-not-clause scope clause)
+
+              :expression-clause
+              (add-clause scope clause))]
+
+        (conj! where-clauses* where-clause)))
+
+    [:not (persistent! where-clauses*)]))
+
+
 (defn- process-where
-  [{:as scope :keys [qb]} clauses]
+  [{:as scope :keys [qb]}
+   clauses]
+
+  #_
+  (qb/add-where qb :and)
+
   (doseq [clause clauses]
-    (let [[tag clause] clause]
-      (case tag
-        ;; :or-clause
-        ;; (process-or-clause scope clause)
-        ;; :not-clause
-        ;; (process-not-clause scope clause)
-        :expression-clause
-        (add-clause scope clause)))))
+    (let [[tag clause] clause
+
+          where-clause
+          (case tag
+            ;; :or-clause
+            ;; (process-or-clause scope clause)
+            :not-clause
+            (process-not-clause scope clause)
+            :expression-clause
+            (add-clause scope clause))
+
+          _ (println where-clause)
+
+          ]
+
+      (qb/add-where qb where-clause))))
 
 
 (defn- find-elem-agg?
