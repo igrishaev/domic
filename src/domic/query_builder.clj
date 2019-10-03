@@ -8,6 +8,10 @@
 
 (defprotocol IQueryBuilder
 
+  (add-join [this clause])
+
+  (add-left-join [this table where])
+
   (last-column-index [this])
 
   (debug [this] [this params])
@@ -38,6 +42,12 @@
     [sql]
 
   IQueryBuilder
+
+  (add-join [this clause]
+    (swap! sql h/merge-join clause))
+
+  (add-left-join [this table where]
+    (swap! sql h/merge-left-join table where))
 
   (last-column-index [this]
     (-> @sql :select count dec))
