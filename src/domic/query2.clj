@@ -2,6 +2,8 @@
 
   (:require [clojure.spec.alpha :as s]
 
+            [domic.pull :refer [pull-many]]
+
             [domic.sql-helpers :refer
              [->cast as-fields as-field lookup?]]
             [domic.runtime :refer [resolve-lookup!]]
@@ -11,6 +13,7 @@
             [domic.db :as db]
             [domic.var-manager :as vm]
             [domic.query-builder :as qb]
+            [domic.pp-manager :as pp]
             [domic.db-manager :as dm]
             [domic.util :refer [zip]]
             [domic.db :as db]
@@ -50,7 +53,8 @@
    [$ ?r :release/artist ?a]
    [$ ?r :release/year ?y]
    [$ ?a :artist/name ?name]
-   [(= ?y 1991)]
+
+   [(= ?y 1999)]
 
    ;; [(in ?y 1985 1986 1987)]
 
@@ -63,6 +67,18 @@
 
    #_
    [$ ?a :db/ident :metallica]])
+
+
+
+(def query
+  '
+  [:find (pull ?r [*])
+   :in $ ?a
+   :where
+   [$ ?r :release/artist ?a]
+   [$ ?r :release/year ?y]
+   [(= ?y 1999)]])
+
 
 
 (defprotocol IDBActions
@@ -170,6 +186,7 @@
 
             :blank nil
 
+            ;; else
             (error-case! elem*)))))))
 
 
@@ -397,18 +414,37 @@
         (add-clause scope clause)))))
 
 
-(defn find-elem-agg?
+(defn- find-elem-agg?
   [find-elem]
   (let [[tag _] find-elem]
     (= tag :agg)))
 
 
+;; {:op pull, :var ?r, :pattern [[:wildcard *]]}
+(defn- add-pull-expression
+  [{:as scope :keys [qb vm pp]}
+   expression]
+
+  ;; add select
+  (let [{:keys [var pattern]} expression]
+    (qb/add-select qb (vm/get-val! vm var))
+
+    ;; add post-processing
+    (let [index (qb/last-column-index qb)]
+      (pp/add-pull pp index pattern))))
+
+
 (defn- add-find-elem
-  [{:keys [vm qb sg]} find-elem*]
+  [{:as scope :keys [vm qb sg]}
+   find-elem*]
   (let [[tag find-elem] find-elem*
         alias (sg "f")]
 
     (case tag
+
+      ;; {:op pull, :var ?r, :pattern [[:wildcard *]]}
+      :pull-expr
+      (add-pull-expression scope find-elem)
 
       :agg
       (let [{:keys [name args]} find-elem
@@ -464,10 +500,50 @@
           (qb/add-group-by qb alias))))))
 
 
-(defn- as-vector
+(defn- process-arrays
   [{:as scope :keys [en]}
    query]
   (rest (en/query en query {:as-arrays? true})))
+
+
+(defn- process-find-type
+  [result find-type]
+  (case find-type
+    :coll (map first result)
+    :scalar (ffirst result)
+    result))
+
+
+(defmulti post-process-column
+  (fn [scope result idx pp-map]
+    (:type pp-map)))
+
+
+(defmethod post-process-column :pull
+  [scope result idx pp-map]
+
+  (let [{:keys [pattern]} pp-map
+
+        ids (for [row result]
+              (get row idx))
+
+        p (pull-many scope '[*] ids)
+        p* (group-by :db/id p)]
+
+    (for [row result]
+      (update row idx
+              (fn [id]
+                (first (get p* id)))))))
+
+
+(defn- post-process
+  [{:as scope :keys [pp]}
+   result]
+  (reduce-kv
+   (fn [result idx pp-map]
+     (post-process-column scope result idx pp-map))
+   result
+   @pp))
 
 
 (defn- q-internal
@@ -480,7 +556,8 @@
                      :vm (vm/manager)
                      :qb (qb/builder)
                      :dm (dm/manager)
-                     :qp (qp/params))
+                     :qp (qp/params)
+                     :pp (pp/manager))
 
         {:keys [qb qp]} scope
 
@@ -502,16 +579,12 @@
 
     (qb/set-distinct qb)
 
-    (qb/debug qb (qp/get-params qp))
+    (qb/debug qb @qp)
 
-    (let [params (qp/get-params qp)
-          query (qb/format qb params)
-          result (as-vector scope query)]
-
-      (case find-type
-        :coll (map first result)
-        :scalar (ffirst result)
-        result))))
+    (as-> (qb/format qb @qp) $
+      (process-arrays scope $)
+      (post-process scope $)
+      (process-find-type $ find-type))))
 
 
 (defn- parse-query
@@ -529,7 +602,8 @@
          args))
 
 #_
-(q _scope query (db/pg) [:db/ident :metallica])
+(do
+  (q _scope query (db/pg) [:db/ident :metallica]))
 
 #_
 (do
@@ -557,7 +631,8 @@
      :dbname "test"
      :host "127.0.0.1"
      :user "ivan"
-     :password "ivan"})
+     :password "ivan"
+     :assumeMinServerVersion "10"})
 
   (def _scope
     {:am (am/manager _attrs)

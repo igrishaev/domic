@@ -15,6 +15,11 @@
 (defrecord QueryParams
     [params]
 
+  clojure.lang.IDeref
+
+  (deref [this]
+    @params)
+
   IQueryParams
 
   (add-alias [this value]

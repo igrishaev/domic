@@ -2,22 +2,19 @@
   (:refer-clojure :exclude [format])
   (:require
    [clojure.pprint :refer [pprint]]
+   [honeysql.helpers :as h]
    [honeysql.core :as sql]))
 
 
 (defprotocol IQueryBuilder
+
+  (last-column-index [this])
 
   (debug [this] [this params])
 
   (set-limit [this limit])
 
   (set-distinct [this])
-
-  (where-stack-up [this op])
-
-  (where-stack-down [this])
-
-  (add-clause [this section clause])
 
   (add-select [this clause])
 
@@ -34,55 +31,20 @@
   (format [this] [this params]))
 
 
-(defmacro with-where [qb op & body]
-  `(do
-     (where-stack-up ~qb ~op)
-     (try
-       ~@body
-       (finally
-         (where-stack-down ~qb)))))
-
-(defmacro with-where-and [qb & body]
-  `(with-where ~qb :and ~@body))
-
-(defmacro with-where-not [qb & body]
-  `(with-where ~qb :not ~@body))
-
-(defmacro with-where-or [qb & body]
-  `(with-where ~qb :or ~@body))
-
-;; (defmacro with-where-not-and [qb & body]
-;;   `(with-where-not ~qb
-;;      (with-where-and ~qb
-;;        ~@body)))
-
-;; (defmacro with-where-not-or [qb & body]
-;;   `(with-where-not ~qb
-;;      (with-where-or ~qb
-;;        ~@body)))
-
-
-(defn update-in*
-  [data path func & args]
-  (if (empty? path)
-    (apply func data args)
-    (apply update-in data path func args)))
-
-
 (def conj* (fnil conj []))
-
-(def WHERE-EMPTY [:and])
 
 
 (defrecord QueryBuilder
-    [where
-     where-path
-     sql]
+    [sql]
 
   IQueryBuilder
 
+  (last-column-index [this]
+    (-> @sql :select count dec))
+
   (set-limit [this limit]
-    (swap! sql assoc :limit limit))
+    (when limit
+      (swap! sql h/limit limit)))
 
   (debug [this]
     (debug this {}))
@@ -92,58 +54,38 @@
     (println (format this params)))
 
   (set-distinct [this]
-    (swap! sql update :modifiers conj* :distinct))
-
-  (where-stack-up [this op]
-    (let [index (count (get-in @where @where-path))]
-      (swap! where update-in* @where-path conj* [op])
-      (swap! where-path conj* index)))
-
-  (where-stack-down [this]
-    (swap! where-path (comp vec butlast)))
+    (swap! sql h/merge-modifiers :distinct))
 
   (add-where [this clause]
-    (swap! where update-in* @where-path conj* clause))
-
-  (add-clause [this section clause]
-    (swap! sql update section conj* clause))
+    (swap! sql h/merge-where clause))
 
   (add-with [this clause]
-    (add-clause this :with clause))
+    (swap! sql update :with conj* clause))
 
   (add-select [this clause]
-    (add-clause this :select clause))
+    (swap! sql h/merge-select clause))
 
   (add-group-by [this clause]
-    (add-clause this :group-by clause))
+    (swap! sql h/merge-group-by clause))
 
   (add-from [this clause]
-    (add-clause this :from clause))
+    (swap! sql h/merge-from clause))
 
-  (->map [this]
-    (let [where* @where]
-      (cond-> @sql
-        (not= where* WHERE-EMPTY)
-        (assoc :where where*))))
+  (->map [this] @sql)
 
   (format [this]
     (format this nil))
 
   (format [this params]
     (sql/format (->map this)
-
                 :params params
                 :allow-namespaced-names? true
-                :quoting :ansi
-
-)))
+                :quoting :ansi)))
 
 
 (defn builder
   []
-  (->QueryBuilder (atom WHERE-EMPTY)
-                  (atom [])
-                  (atom {})))
+  (->QueryBuilder (atom {})))
 
 
 (def builder? (partial satisfies? IQueryBuilder))
@@ -151,6 +93,19 @@
 
 #_
 (do
+
+  (doto (builder)
+    (set-distinct)
+    (add-where [:= :a :b])
+    (add-where [:in :c [1 2 3]])
+    (add-with [:sub :subquery])
+    (add-select [:foo :f])
+    (add-select [:bar :b])
+    (add-group-by [:test :asc])
+    (add-from [:datoms :d1])
+    (add-from [:datoms :d2]))
+
+
 
   (def _b (builder))
 
