@@ -8,6 +8,8 @@
 
 (defprotocol IQueryBuilder
 
+  (empty-from? [this])
+
   (add-join [this clause])
 
   (add-left-join [this table where])
@@ -42,6 +44,9 @@
     [sql]
 
   IQueryBuilder
+
+  (empty-from? [this]
+    (-> @sql :from empty?))
 
   (add-join [this clause]
     (swap! sql h/merge-join clause))

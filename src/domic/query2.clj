@@ -83,12 +83,20 @@
 
 (def query
   '
-  [:find ?x
-   :in $ ?x
+  [:find ?e
+   :in $
    :where
 
+   ;; todo: read only
+   (not [?e :artist/name "Queen"])
+
+   #_
    [?e :artist/name "Queen"]
 
+   #_
+   (not [?e :artist/name "Queen"])
+
+   #_
    [(= ?x ?x)]
 
    #_
@@ -184,13 +192,20 @@
 
             (error-case! elem*))))
 
-      (qb/add-left-join qb [alias alias-layer] (persistent! where*))
+      (let [table [alias alias-layer]
+            where (persistent! where*)]
 
-      [:is-not (sql/qualify alias-layer :id) nil]
+        (if (qb/empty-from? qb)
 
+          (do
+            (qb/add-from qb table)
+            where)
 
+          (do
+            (qb/add-left-join qb table where)
+            [:is-not alias-layer nil])
 
-      ))
+          ))))
 
   DBTable
 
