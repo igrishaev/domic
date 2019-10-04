@@ -33,7 +33,7 @@
   IVarManager
 
   (consume [this other]
-    (swap! vars merge @other))
+    (reset! vars (merge @other @vars)))
 
   (get-val [this var]
     (if (bound? this var)

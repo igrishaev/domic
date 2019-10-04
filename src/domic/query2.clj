@@ -26,61 +26,6 @@
 
   (:import [domic.db DBPG DBTable]))
 
-#_
-(def query
-  '
-  [:find ?name ?a ?x ?y ?m ?p
-   :in $ $data ?name [?x ...] ?y [[?m _ ?p]]
-   :where
-   [$ ?a :artist/name ?name]])
-
-
-#_
-(def query
-  '
-  [:find ?x
-   :in $ $data
-   :where
-   [$data  _ ?b]
-   [$data ?b ?x]])
-
-
-(def query
-  '
-  [:find ?r ?y ?name ;; ?y1 ?y2 ?y3 ?y4
-   :in $ ?a
-   :where
-   [$ ?r :release/artist ?a]
-   [$ ?r :release/year ?y]
-   [$ ?a :artist/name ?name]
-
-   [(= ?y 1999)]
-
-   ;; [(in ?y 1985 1986 1987)]
-
-   ;; [(+ ?y 100) ?y1]
-   ;; [(- ?y 100) ?y2]
-   ;; [(* ?y 100) ?y3]
-   ;; [(/ ?y 100) ?y4]
-   #_
-   [(foo_bar ?y 1 2 3) ?y5]
-
-   #_
-   [$ ?a :db/ident :metallica]])
-
-
-
-#_
-(def query
-  '
-  [:find (pull ?r [*])
-   :in $ ?a
-   :where
-   [$ ?r :release/artist ?a]
-   [$ ?r :release/year ?y]
-
-   (not (not (not [(= ?y 1999)])))])
-
 
 (def rules
   '
@@ -99,13 +44,44 @@
    [(foobar ?len ?max)
     [?t :track/artists ?a]]])
 
+
+(def d1
+  [["a1" "b1" "c1"]
+   ["a2" "b2" "c2"]
+   ["a3" "b3" "c3"]])
+
+
+(def d2
+  [["a1" "b1"  "d1"]
+   ["a2" "b2*" "d2"]
+   ["a4" "b4"  "c4"]])
+
+
 (def query
   '
+
+  [:find ?a ?c
+   :in $xs $ys
+   :where (or-join [?a ?c]
+                   [$xs ?a ?b ?c]
+                   [$ys ?a ?c])]
+
+
+  #_
+
+  [:find ?a ?b ?c
+   :in $xs $ys
+   :where [$xs ?a ?b ?c]
+   (or-join [?a]
+            [$ys ?a ?b ?d])]
+
+  #_
+
   [:find ?e ?name
-   :in $
+   :in
    :where
 
-   [?e :db/ident :metallica]
+
 
    (or-join [[?e] ?name]
             [?e :artist/name ?name])
@@ -153,6 +129,30 @@
             elem))))))
 
 
+(defn- finish-layer
+  [{:as scope :keys [qb lvl]}
+   table where]
+
+  (let [where (join-and where)
+        [_ alias-layer] table]
+
+    (if (qb/empty-from? qb)
+
+      (do
+        (qb/add-from qb table)
+        where)
+
+      (if (zero? lvl)
+
+        (do
+          (qb/add-join qb table where)
+          nil)
+
+        (do
+          (qb/add-left-join qb table where)
+          [:is-not alias-layer nil])))))
+
+
 (extend-protocol IDBActions
 
   DBPG
@@ -172,7 +172,7 @@
           pg-type (when attr
                     (am/get-pg-type am attr))
 
-          where* (transient [:and])]
+          where* (transient [])]
 
       (doseq [[field elem*] field-elem-pairs]
 
@@ -202,26 +202,12 @@
 
             :blank nil
 
+            ;; else
             (error-case! elem*))))
 
-      (let [table [alias alias-layer]
-            where (persistent! where*)]
-
-        (if (qb/empty-from? qb)
-
-          (do
-            (qb/add-from qb table)
-            where)
-
-          (if (zero? lvl)
-
-            (do
-              (qb/add-join qb table where)
-              nil)
-
-            (do
-              (qb/add-left-join qb table where)
-              [:is-not alias-layer nil]))))))
+      (finish-layer scope
+                    [alias alias-layer]
+                    (persistent! where*))))
 
   DBTable
 
@@ -232,12 +218,12 @@
 
   (add-pattern-db [db scope expression]
 
-    (let [{:keys [qb sg vm]} scope
+    (let [{:keys [qb sg vm lvl]} scope
           {:keys [alias fields]} db
           {:keys [elems]} expression
-          alias-layer (sg "layer")]
+          alias-layer (sg "layer")
 
-      (qb/add-from qb [alias alias-layer])
+          where* (transient [])]
 
       (doseq [[elem* field] (zip elems fields)]
         (let [[tag elem] elem*
@@ -248,18 +234,22 @@
             :cst
             (let [[tag v] elem]
               (let [where [:= alias-fq v]]
-                (qb/add-where qb where)))
+                (conj! where* where)))
 
             :var
             (if (vm/bound? vm elem)
               (let [where [:= alias-fq (vm/get-val vm elem)]]
-                (qb/add-where qb where))
+                (conj! where* where))
               (vm/bind vm elem alias-fq))
 
             :blank nil
 
             ;; else
-            (error-case! elem*)))))))
+            (error-case! elem*))))
+
+      (finish-layer scope
+                    [alias alias-layer]
+                    (persistent! where*)))))
 
 
 (defn- discover-db
@@ -289,6 +279,7 @@
     (let [[tag input] input-src]
       (case tag
 
+        ;; todo add rules
         ;; :pattern-var
         ;; (let [rules* (group-rules input)]
         ;;   )
@@ -623,6 +614,12 @@
           vm-dst (:vm scope)
           vm-src (vm/manager)
 
+
+          _ (pprint "-------")
+          _ (pprint @vm-dst)
+          _ (pprint @vm-src)
+          _ (pprint "-------")
+
           _ (doseq [[var req?] vars-src-pairs]
 
               (if req?
@@ -654,6 +651,14 @@
           ]
 
       (vm/consume vm-dst vm-src)
+
+      _ (pprint "-------")
+      _ (pprint @vm-dst)
+      _ (pprint @vm-src)
+      _ (pprint "-------")
+
+      ;; (pprint @vm-dst)
+      ;; (pprint @vm-src)
 
       (join-or result))))
 
@@ -856,6 +861,9 @@
     (process-in scope inputs query-inputs)
     (process-where scope clauses)
     (process-find scope spec)
+
+    ;; todo process with
+    ;; todo process maps
 
     (qb/set-distinct qb)
 

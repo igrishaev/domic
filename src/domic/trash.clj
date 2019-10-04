@@ -471,3 +471,56 @@
       (when-not (vm/bound? vm-dst var-dst)
         (let [val (vm/get-val vm-src var-src)]
           (vm/bind vm-dst var-dst val))))
+
+
+(def query
+  '
+  [:find ?name ?a ?x ?y ?m ?p
+   :in $ $data ?name [?x ...] ?y [[?m _ ?p]]
+   :where
+   [$ ?a :artist/name ?name]])
+
+
+(def query
+  '
+  [:find ?x
+   :in $ $data
+   :where
+   [$data  _ ?b]
+   [$data ?b ?x]])
+
+(def query
+  '
+  [:find ?r ?y ?name ;; ?y1 ?y2 ?y3 ?y4
+   :in $ ?a
+   :where
+   [$ ?r :release/artist ?a]
+   [$ ?r :release/year ?y]
+   [$ ?a :artist/name ?name]
+
+   [(= ?y 1999)]
+
+   ;; [(in ?y 1985 1986 1987)]
+
+   ;; [(+ ?y 100) ?y1]
+   ;; [(- ?y 100) ?y2]
+   ;; [(* ?y 100) ?y3]
+   ;; [(/ ?y 100) ?y4]
+   #_
+   [(foo_bar ?y 1 2 3) ?y5]
+
+   #_
+   [$ ?a :db/ident :metallica]])
+
+
+(def query
+  '
+  [:find (pull ?r [*])
+   :in $ ?a
+   :where
+   [$ ?r :release/artist ?a]
+   [$ ?r :release/year ?y]
+
+   (not (not (not [(= ?y 1999)])))])
+
+[?e :db/ident :metallica]
