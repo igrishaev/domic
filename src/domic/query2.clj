@@ -455,8 +455,15 @@
   #_
   (println expression)
 
-  (let [
-        expression '{:head {:name short-track, :vars [:vars [?a ?t ?len ?max]]},
+  (let [{:keys [rule-name vars]} expression
+
+        vars-dst (for [var vars]
+                   (let [[tag var] var]
+                     (case tag
+                       :var var)))
+
+        ;; resolve by rule-name
+        rule       '{:head {:name short-track, :vars [:vars [?a ?t ?len ?max]]},
                      :clauses
                      [[:expression-clause
                        [:data-pattern
@@ -468,16 +475,31 @@
                        [:pred-expr
                         {:expr {:pred [:sym <], :args [[:var ?len] [:var ?max]]}}]]]}
 
-        {:keys [clauses head]} expression
+        {:keys [clauses head]} rule
         {:keys [vars]} head
 
+        vars-src vars
+
+        vars-mapping (zip vars-src vars-dst)
+
+        vm-dst (:vm scope)
+        vm-src (vm/manager)
+
+
+
+        scope (assoc scope :vm vm-src)
 
         ]
 
-    )
+    ;; fill initial vars
 
+    (process-clauses scope clauses)
 
-  )
+    ;; backfill vars
+    (doseq [[var-src var-dst] vars-mapping]
+      (let [val (vm/get-val vm-src var-src)]
+        (vm/bind vm-dst var-dst val)))))
+
 
 (defn- add-clause
   [scope clause]
