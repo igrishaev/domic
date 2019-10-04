@@ -84,10 +84,13 @@
 
 (def rules
   '
-  [[(short-track ?a ?t ?len ?max)
+  [[(short-track [?a ?t] ?len ?max)
     [?t :track/artists ?a]
     [?t :track/duration ?len]
-    [(< ?len ?max)]]])
+    [(< ?len ?max)]]
+
+   [(foobar ?len ?max)
+    [?t :track/artists ?a]]])
 
 (def query
   '
@@ -436,7 +439,8 @@
 
 #_
 {short-track
- {:head {:name short-track, :vars [:vars [?a ?t ?len ?max]]},
+ {:head
+  {:name short-track, :vars [:vars* {:in [?a ?t], :out [?len ?max]}]},
   :clauses
   [[:expression-clause
     [:data-pattern
@@ -446,7 +450,13 @@
      {:elems [[:var ?t] [:cst [:kw :track/duration]] [:var ?len]]}]]
    [:expression-clause
     [:pred-expr
-     {:expr {:pred [:sym <], :args [[:var ?len] [:var ?max]]}}]]]}}
+     {:expr {:pred [:sym <], :args [[:var ?len] [:var ?max]]}}]]]},
+ foobar
+ {:head {:name foobar, :vars [:vars [?len ?max]]},
+  :clauses
+  [[:expression-clause
+    [:data-pattern
+     {:elems [[:var ?t] [:cst [:kw :track/artists]] [:var ?a]]}]]]}}
 
 (defn- add-rule
   [scope
