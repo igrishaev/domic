@@ -1,4 +1,4 @@
-(ns domic.spec.datomic
+(ns domic.spec-datomic
   (:require
    [clojure.spec.alpha :as s]
    [clojure.string :as str]))

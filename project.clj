@@ -9,7 +9,6 @@
 
   :dependencies [
                  [org.clojure/java.jdbc "0.7.8"]
-                 [org.postgresql/postgresql "42.1.3"]
                  [honeysql "0.9.6"]
 
                  #_[cheshire "5.6.3"]
@@ -23,6 +22,7 @@
 
    :dev {:dependencies
          [[org.clojure/clojure "1.10.0"]
+          [org.postgresql/postgresql "42.1.3"]
           [com.datomic/datomic-free "0.9.5697"]]}}
 
   :target-path "target/%s")

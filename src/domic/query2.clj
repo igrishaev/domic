@@ -20,7 +20,7 @@
             [domic.query-params :as qp]
             [domic.attr-manager :as am]
             [domic.engine :as en]
-            [domic.spec.datomic :as ds]
+            [domic.spec-datomic :as ds]
 
             [honeysql.core :as sql])
 

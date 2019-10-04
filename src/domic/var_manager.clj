@@ -66,7 +66,6 @@
   (partial satisfies? IVarManager))
 
 
-
 (defn subset
   [this valiables]
   (manager (into {} (for [var valiables]
