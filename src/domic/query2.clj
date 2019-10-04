@@ -81,15 +81,32 @@
 
    (not (not (not [(= ?y 1999)])))])
 
+
+(def rules
+  '
+  [[(short-track ?a ?t ?len ?max)
+    [?t :track/artists ?a]
+    [?t :track/duration ?len]
+    [(< ?len ?max)]]])
+
 (def query
   '
-  [:find ?e ?foo
-   :in $
+  [:find ?e
+   :in $ %
    :where
 
    [?e :db/ident :metallica]
 
-   [(<> 2 2) ?foo]
+   (short-track ?a ?t ?len ?max)
+
+   #_
+
+   (not-join [?e]
+             [?e :db/ident :metallica]
+             [?e :db/ident :metallica])
+
+   ;; [?e :db/ident :metallica]
+   ;; (not [?e :db/ident :metallica])
 
 
 
@@ -106,8 +123,14 @@
 
        )
 
-])
+   ])
 
+
+(defn group-rules
+  [rules]
+  (let [rules* (s/conform ::ds/rules rules)]
+    (into {} (for [rule* rules*]
+               [(-> rule* :head :name) rule*]))))
 
 
 (defprotocol IDBActions
@@ -174,7 +197,7 @@
             (if (vm/bound? vm elem)
               (let [where [:= alias-fq (vm/get-val vm elem)]]
                 (conj! where* where))
-              (vm/bind! vm elem alias-fq))
+              (vm/bind vm elem alias-fq))
 
             :blank nil
 
@@ -230,7 +253,7 @@
             (if (vm/bound? vm elem)
               (let [where [:= alias-fq (vm/get-val vm elem)]]
                 (qb/add-where qb where))
-              (vm/bind! vm elem alias-fq))
+              (vm/bind vm elem alias-fq))
 
             :blank nil
 
@@ -290,7 +313,7 @@
                   (case tag
                     :unused nil
                     :var
-                    (vm/bind! vm input alias-fq)))))
+                    (vm/bind vm input alias-fq)))))
 
             :bind-coll
             (let [{:keys [var]} input
@@ -300,7 +323,7 @@
                   field (sql/qualify alias-coll alias-field)
                   values {:values (mapv vector param)}
                   from [values alias-full]]
-              (vm/bind! vm var field)
+              (vm/bind vm var field)
               (qb/add-from qb from))
 
             :bind-tuple nil ;; bug in datomic spec
@@ -314,7 +337,7 @@
                 (let [[tag input] input]
                   (case tag
                     :var
-                    (vm/bind! vm input param
+                    (vm/bind vm input param
                               :in input-src (type param-el))))))
 
             :bind-scalar
@@ -324,7 +347,7 @@
               (let [_a (sg (name input))
                     _p (sql/param _a)]
                 (qp/add-param qp _a value)
-                (vm/bind! vm input _p)))))))))
+                (vm/bind vm input _p)))))))))
 
 
 (defn- add-pattern
@@ -351,7 +374,7 @@
                    (case tag
 
                      :var
-                     (vm/get-val! vm arg)
+                     (vm/get-val vm arg)
 
                      :cst
                      (let [[tag arg] arg]
@@ -384,7 +407,7 @@
                 (let [[tag arg] arg]
                   (case tag
                     :var
-                    (vm/get-val! vm arg)
+                    (vm/get-val vm arg)
 
                     :cst
                     (let [[tag arg] arg]
@@ -402,15 +425,67 @@
 
     (case bind-tag
       :bind-scalar
-      (vm/bind! vm binding fn-expr)))
+      (vm/bind vm binding fn-expr)))
 
   nil)
 
+
+#_
+{:rule-name short-track,
+ :vars [[:var ?a2] [:var ?t2] [:var ?len2] [:var2 ?max]]}
+
+#_
+{short-track
+ {:head {:name short-track, :vars [:vars [?a ?t ?len ?max]]},
+  :clauses
+  [[:expression-clause
+    [:data-pattern
+     {:elems [[:var ?t] [:cst [:kw :track/artists]] [:var ?a]]}]]
+   [:expression-clause
+    [:data-pattern
+     {:elems [[:var ?t] [:cst [:kw :track/duration]] [:var ?len]]}]]
+   [:expression-clause
+    [:pred-expr
+     {:expr {:pred [:sym <], :args [[:var ?len] [:var ?max]]}}]]]}}
+
+(defn- add-rule
+  [scope
+   expression]
+
+  #_
+  (println expression)
+
+  (let [
+        expression '{:head {:name short-track, :vars [:vars [?a ?t ?len ?max]]},
+                     :clauses
+                     [[:expression-clause
+                       [:data-pattern
+                        {:elems [[:var ?t] [:cst [:kw :track/artists]] [:var ?a]]}]]
+                      [:expression-clause
+                       [:data-pattern
+                        {:elems [[:var ?t] [:cst [:kw :track/duration]] [:var ?len]]}]]
+                      [:expression-clause
+                       [:pred-expr
+                        {:expr {:pred [:sym <], :args [[:var ?len] [:var ?max]]}}]]]}
+
+        {:keys [clauses head]} expression
+        {:keys [vars]} head
+
+
+        ]
+
+    )
+
+
+  )
 
 (defn- add-clause
   [scope clause]
   (let [[tag expression] clause]
     (case tag
+
+      :rule-expr
+      (add-rule scope expression)
 
       :fn-expr
       (add-function scope expression)
@@ -433,9 +508,16 @@
 (def join-or  (partial join-* :or))
 
 
-(defn- bump-level
-  [scope]
-  (update scope :lvl inc))
+(defmacro with-lvl-up
+  [scope & body]
+  `(let [~scope (update ~scope :lvl inc)]
+     ~@body))
+
+
+(defmacro with-vm-subset
+  [scope vars & body]
+  `(let [~scope (update ~scope :vm vm/subset ~vars)]
+     ~@body))
 
 
 (defn- process-clauses
@@ -448,7 +530,7 @@
       (case tag
 
         :or-clause
-        (let [scope (bump-level scope)]
+        (with-lvl-up scope
           (let [{:keys [clauses]} clause]
             (join-or
              (for [clause clauses]
@@ -459,17 +541,32 @@
                     (process-clauses scope [clause]))
 
                    :and-clause
-                   (let [scope (bump-level scope)]
+                   (with-lvl-up scope
                      (let [{:keys [clauses]} clause]
                        (join-and
                         (process-clauses scope clauses))))))))))
 
+        :or-join-clause
+        (with-lvl-up scope
+          )
+
         :not-clause
-        (let [scope (bump-level scope)]
-          (let [{:keys [clauses]} clause]
-            [:not
-             (join-and
-              (process-clauses scope clauses))]))
+        (vm/with-read-only
+          (with-lvl-up scope
+            (let [{:keys [clauses]} clause]
+              [:not
+               (join-and
+                (process-clauses scope clauses))])))
+
+        :not-join-clause
+        (vm/with-read-only
+          (with-lvl-up scope
+            (let [{:keys [vars clauses]} clause]
+              (with-vm-subset scope vars
+                [:not
+                 (join-and
+                  (process-clauses scope clauses))]))))
+
 
         :expression-clause
         (add-clause scope clause)))))
@@ -479,7 +576,6 @@
   [{:as scope :keys [qb]}
    clauses]
   (let [where (join-and (process-clauses scope clauses))]
-    (println "~~~" where)
     (qb/add-where qb where)))
 
 
@@ -496,7 +592,7 @@
 
   ;; add select
   (let [{:keys [var pattern]} expression]
-    (qb/add-select qb (vm/get-val! vm var))
+    (qb/add-select qb (vm/get-val vm var))
 
     ;; add post-processing
     (let [index (qb/last-column-index qb)]
@@ -522,11 +618,11 @@
                           (let [[tag arg] arg]
                             (case tag
                               :var
-                              (vm/get-val! vm arg)))))]
+                              (vm/get-val vm arg)))))]
         (qb/add-select qb [call alias]))
 
       :var
-      (let [val (vm/get-val! vm find-elem)]
+      (let [val (vm/get-val vm find-elem)]
         (qb/add-select qb [val alias]))
 
       (error! "No matching clause: %s" find-elem*))

@@ -3,17 +3,24 @@
   (:require [domic.error :refer [error!]]))
 
 
+(def ^:dynamic *read-only* nil)
+
+
+(defmacro with-read-only
+  [& body]
+  `(binding [*read-only* true]
+     ~@body))
+
+
 (defprotocol IVarManager
 
-  (bind! [this var val])
+  (subset [this valiables])
 
   (bind [this var val])
 
   (bound? [this var])
 
-  (get-val [this var])
-
-  (get-val! [this var]))
+  (get-val [this var]))
 
 
 (defrecord VarManager
@@ -21,28 +28,35 @@
 
   IVarManager
 
+  (subset [this valiables]
+    (manager (into {} (for [var valiables]
+                        [var (get-val this var)]))))
+
   (get-val [this var]
-    (get @vars var))
-
-  (get-val! [this var]
-    (or (get-val this var)
-        (error! "Var %s is unbound" var)))
-
-  (bind! [this var val]
     (if (bound? this var)
-      (error! "Var %s is already bound" var)
-      (bind this var val)))
+      (get @vars var)
+      (error! "Var %s is unbound" var)))
 
   (bind [this var val]
-    (swap! vars assoc var val))
+
+    (when *read-only*
+      (error! "Binding %s to %s is not allowed here"
+              var val))
+
+    (if (bound? this var)
+      (error! "Var %s is already bound" var)
+      (swap! vars assoc var val)))
 
   (bound? [this var]
     (contains? @vars var)))
 
 
 (defn manager
-  []
-  (->VarManager (atom {})))
+  ([]
+   (manager {}))
+
+  ([initials]
+   (->VarManager (atom initials))))
 
 
 (def manager?
