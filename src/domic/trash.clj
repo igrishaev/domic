@@ -458,3 +458,16 @@
   (s/cat :src-var (s/? ::src-var)
          :op #{'or}
          :clauses (s/+ (s/or :clause ::clause :and-clause ::and-clause))))
+
+
+(s/def ::rule-vars
+  (s/or :vars (s/+ ::variable)
+        :vars* (s/cat :in (s/spec (s/+ ::variable)) :out (s/* ::variable))))
+
+
+(doseq [[var-dst [var-src req?]]
+            (zip vars-dst vars-src-pairs)]
+
+      (when-not (vm/bound? vm-dst var-dst)
+        (let [val (vm/get-val vm-src var-src)]
+          (vm/bind vm-dst var-dst val))))

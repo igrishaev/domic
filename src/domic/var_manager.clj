@@ -16,6 +16,8 @@
 
   (subset [this valiables])
 
+  (consume [this other])
+
   (bind [this var val])
 
   (bound? [this var])
@@ -35,6 +37,9 @@
   (subset [this valiables]
     (manager (into {} (for [var valiables]
                         [var (get-val this var)]))))
+
+  (consume [this other]
+    (swap! vars merge @other))
 
   (get-val [this var]
     (if (bound? this var)
