@@ -452,3 +452,9 @@
 (into {} (for [[[kw] section] (partition 2 (partition-by #{:where :in :find} query))]
                          [kw section]
                          ))
+
+
+(s/def ::or-clause
+  (s/cat :src-var (s/? ::src-var)
+         :op #{'or}
+         :clauses (s/+ (s/or :clause ::clause :and-clause ::and-clause))))
