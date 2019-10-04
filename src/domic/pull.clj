@@ -14,8 +14,7 @@
    [domic.sql-helpers :refer
     [->cast lookup? adder]]
 
-   [honeysql.core :as sql]
-   [datomic-spec.core :as ds])
+   [honeysql.core :as sql])
 
   (:import java.sql.ResultSet))
 

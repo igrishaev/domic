@@ -20,9 +20,9 @@
             [domic.query-params :as qp]
             [domic.attr-manager :as am]
             [domic.engine :as en]
+            [domic.spec.datomic :as ds]
 
-            [honeysql.core :as sql]
-            [datomic-spec.core :as ds])
+            [honeysql.core :as sql])
 
   (:import [domic.db DBPG DBTable]))
 
@@ -123,6 +123,15 @@
       (error! "Wrong rules: %s" rules*))
     (into {} (for [rule* rules*]
                [(-> rule* :head :name) rule*]))))
+
+
+(defn- join-*
+  [op clauses]
+  (when-let [clauses* (not-empty (filter some? clauses))]
+    (into [op] clauses*)))
+
+(def join-and (partial join-* :and))
+(def join-or  (partial join-* :or))
 
 
 (defprotocol IDBActions
@@ -548,16 +557,6 @@
       (add-pattern scope expression)
 
       )))
-
-
-(defn- join-*
-  [op clauses]
-  (when-let [clauses* (not-empty (filter some? clauses))]
-    (into [op] clauses*)))
-
-
-(def join-and (partial join-* :and))
-(def join-or  (partial join-* :or))
 
 
 (defmacro with-lvl-up

@@ -14,8 +14,6 @@
 
 (defprotocol IVarManager
 
-  (subset [this valiables])
-
   (consume [this other])
 
   (bind [this var val])
@@ -33,10 +31,6 @@
   (deref [this] @vars)
 
   IVarManager
-
-  (subset [this valiables]
-    (manager (into {} (for [var valiables]
-                        [var (get-val this var)]))))
 
   (consume [this other]
     (swap! vars merge @other))
@@ -70,3 +64,10 @@
 
 (def manager?
   (partial satisfies? IVarManager))
+
+
+
+(defn subset
+  [this valiables]
+  (manager (into {} (for [var valiables]
+                      [var (get-val this var)]))))
