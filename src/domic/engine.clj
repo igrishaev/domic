@@ -5,19 +5,16 @@
    [domic.util :refer [kw->str]]
    [honeysql.core :as sql])
   (:import
-   [clojure.lang Keyword Symbol]
-   org.postgresql.util.PGobject
-   org.postgresql.jdbc.PgArray))
+   [clojure.lang Keyword Symbol]))
 
 
 (defmacro with-tx
-  [binding & body]
-  (let [[en-tx en & tx-opt] binding]
-    `(let [db-spec# (:db-spec ~en)]
-       (jdbc/with-db-transaction
-         [tx-spec# db-spec# ~@tx-opt]
-         (let [~en-tx (assoc ~en :db-spec tx-spec#)]
-           ~@body)))))
+  [[en-tx en & tx-opt] & body]
+  `(let [db-spec# (:db-spec ~en)]
+     (jdbc/with-db-transaction
+       [tx-spec# db-spec# ~@tx-opt]
+       (let [~en-tx (assoc ~en :db-spec tx-spec#)]
+         ~@body))))
 
 
 (defprotocol IEngine
@@ -48,9 +45,7 @@
     (execute this sql-map nil))
 
   (execute [this sql-map params]
-    (jdbc/execute! db-spec
-                   (sql/format sql-map params)))
-
+    (jdbc/execute! db-spec (sql/format sql-map params)))
 
   (query [this query]
     (jdbc/query db-spec query))
@@ -64,32 +59,14 @@
   (->Engine db-spec))
 
 
-(defn ->pg-obj
-  [^String type ^String value]
-  (doto (PGobject.)
-    (.setType type)
-    (.setValue value)))
-
-
 (extend-protocol jdbc/ISQLValue
 
   Symbol
 
   (sql-value [val]
-    (->pg-obj "text" (str val)))
+    (str val))
 
   Keyword
 
   (sql-value [val]
-    (->pg-obj "text" (kw->str val))))
-
-
-(extend-protocol jdbc/IResultSetReadColumn
-
-  PgArray
-  (result-set-read-column [pgarray metadata index]
-    (let [array-type (.getBaseTypeName pgarray)
-          array-java (.getArray pgarray)]
-      (with-meta
-        (set array-java)
-        {:sql/array-type array-type}))))
+    (kw->str val)))

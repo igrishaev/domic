@@ -524,3 +524,46 @@
    (not (not (not [(= ?y 1999)])))])
 
 [?e :db/ident :metallica]
+
+
+(extend-protocol jdbc/IResultSetReadColumn
+
+  PgArray
+  (result-set-read-column [pgarray metadata index]
+    (let [array-type (.getBaseTypeName pgarray)
+          array-java (.getArray pgarray)]
+      (with-meta
+        (set array-java)
+        {:sql/array-type array-type}))))
+
+org.postgresql.util.PGobject
+org.postgresql.jdbc.PgArray
+
+
+(defn build-back-refs
+  [attr-list]
+  (->> attr-list
+       (filter -ref-attr?)
+       (map ->back-ref)))
+
+(defn ->back-ref
+  [^Keyword attr]
+  (let [ident (:db/ident attr)
+        a-ns (namespace ident)
+        a-name (name ident)
+        ident-rev (keyword a-ns (str "_" a-name))]
+    (assoc attr
+           :db/doc (format "A backref to %s" ident)
+           :db/ident ident-rev
+           :db/cardinality :db.cardinality/many)))
+
+
+(defn -ref-attr?
+  [attr]
+  (some-> attr :db/valueType (= :db.type/ref)))
+
+
+(def pg-mapping
+  {:db.type/string  :text
+   :db.type/ref     :integer
+   :db.type/integer :integer})

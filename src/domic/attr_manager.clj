@@ -1,78 +1,11 @@
 (ns domic.attr-manager
   (:require
-   [clojure.string :as str]
+   [domic.attributes :as at]
    [domic.error :refer [error!]])
   (:import java.sql.ResultSet))
 
 
-(defmulti rs->clj
-  (fn [valueType rs index]
-    valueType))
-
-
-(defmethod rs->clj :db.type/string
-  [_ ^ResultSet rs ^long index]
-  (.getString rs index))
-
-
-(defmethod rs->clj :db.type/ref
-  [_ ^ResultSet rs ^long index]
-  {:db/id (.getLong rs index)})
-
-
-(defmethod rs->clj :db.type/integer
-  [_ ^ResultSet rs ^long index]
-  (.getInt rs index))
-
-
-(def attr-defaults
-
-  [{:db/ident       :db/ident
-    :db/valueType   :db.type/string
-    :db/cardinality :db.cardinality/one}
-
-   {:db/ident       :db/doc
-    :db/valueType   :db.type/string
-    :db/cardinality :db.cardinality/one}])
-
-
-(defn ->back-ref
-  [attr]
-  (let [ident (:db/ident attr)
-        a-ns (namespace ident)
-        a-name (name ident)
-        ident-rev (keyword a-ns (str "_" a-name))]
-    (assoc attr
-           :db/doc (format "A backref to %s" ident)
-           :db/ident ident-rev
-           :db/cardinality :db.cardinality/many)))
-
-
-(defn backref->ref
-  [attr]
-  (let [a-ns (namespace attr)
-        a-name (name attr)]
-    (keyword a-ns (subs a-name 1))))
-
-
-(defn -ref-attr?
-  [attr]
-  (some-> attr :db/valueType (= :db.type/ref)))
-
-
-(defn -backref?
-  [attr]
-  (some-> attr name (str/starts-with? "_")))
-
-
-(defn build-back-refs
-  [attr-list]
-  (->> attr-list
-       (filter -ref-attr?)
-       (map ->back-ref)))
-
-
-(defn group-attrs
+(defn- group-attrs
   [attr-list]
   (reduce
    (fn [result attrs]
@@ -80,17 +13,6 @@
        (assoc result ident attrs)))
    {}
    attr-list))
-
-
-(defn attr-wildcard?
-  [attr]
-  (some-> attr name (= "*")))
-
-
-(def pg-mapping
-  {:db.type/string  :text
-   :db.type/ref     :integer
-   :db.type/integer :integer})
 
 
 (defprotocol IAttrManager
@@ -103,9 +25,9 @@
 
   (multiple? [this attr])
 
-  (get-db-type [this attr])
+  (get-type [this attr])
 
-  (get-pg-type [this attr]))
+  (get-db-type [this attr]))
 
 
 (defrecord AttrManager
@@ -137,13 +59,12 @@
             :db/cardinality
             (= :db.cardinality/many)))
 
-  (get-db-type [this attr]
+  (get-type [this attr]
     (get-in attr-map [attr :db/valueType]))
 
-  (get-pg-type [this attr]
-    (let [db-type (get-db-type this attr)]
-      (or (get pg-mapping db-type)
-          (error! "Unknown type: %s" attr)))))
+  (get-db-type [this attr]
+    (let [a-type (get-type this attr)]
+      (at/->db-type a-type))))
 
 
 (defn manager
