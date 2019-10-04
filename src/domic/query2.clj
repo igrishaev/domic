@@ -84,22 +84,32 @@
 
 (def rules
   '
-  [[(short-track [?a ?t] ?len ?max)
+  [
+
+   [(artist-name? [?a] ?name)
+    [?a :artist/name ?name]]
+
+   #_
+   [(short-track [?a ?t] ?len ?max)
     [?t :track/artists ?a]
     [?t :track/duration ?len]
     [(< ?len ?max)]]
 
+   #_
    [(foobar ?len ?max)
     [?t :track/artists ?a]]])
 
 (def query
   '
-  [:find ?e
-   :in $ %
+  [:find ?e ?n
+   :in $
    :where
 
    [?e :db/ident :metallica]
+   (artist-name? ?e ?n)
 
+
+   #_
    (short-track ?a ?t ?len ?max)
 
    #_
@@ -132,6 +142,8 @@
 (defn group-rules
   [rules]
   (let [rules* (s/conform ::ds/rules rules)]
+    (when (= rules* ::s/invalid)
+      (error! "Wrong rules: %s" rules*))
     (into {} (for [rule* rules*]
                [(-> rule* :head :name) rule*]))))
 
@@ -290,6 +302,10 @@
   (doseq [[input-src param] (zip inputs params)]
     (let [[tag input] input-src]
       (case tag
+
+        ;; :pattern-var
+        ;; (let [rules* (group-rules input)]
+        ;;   )
 
         :src-var
         (let [db (discover-db scope input param)]
@@ -458,12 +474,31 @@
     [:data-pattern
      {:elems [[:var ?t] [:cst [:kw :track/artists]] [:var ?a]]}]]]}}
 
+
+(defn split-rule-vars
+  [rule-vars]
+  (let [var-map (apply hash-map rule-vars)
+        {:keys [vars* vars]} var-map
+        {:keys [in out]} vars*]
+    (concat
+     (for [var in]
+       [var true])
+     (for [var out]
+       [var false])
+     (for [var vars]
+       [var false]))))
+
+
+;; write a comment here
+(declare process-clauses)
+
+
+(def RULES (group-rules rules))
+
+
 (defn- add-rule
   [scope
    expression]
-
-  #_
-  (println expression)
 
   (let [{:keys [rule-name vars]} expression
 
@@ -472,43 +507,53 @@
                      (case tag
                        :var var)))
 
-        ;; resolve by rule-name
-        rule       '{:head {:name short-track, :vars [:vars [?a ?t ?len ?max]]},
-                     :clauses
-                     [[:expression-clause
-                       [:data-pattern
-                        {:elems [[:var ?t] [:cst [:kw :track/artists]] [:var ?a]]}]]
-                      [:expression-clause
-                       [:data-pattern
-                        {:elems [[:var ?t] [:cst [:kw :track/duration]] [:var ?len]]}]]
-                      [:expression-clause
-                       [:pred-expr
-                        {:expr {:pred [:sym <], :args [[:var ?len] [:var ?max]]}}]]]}
+
+        rule (get RULES rule-name)
+
+        _ (when-not rule
+            (error! "Cannot resolve a rule %s" rule-name))
 
         {:keys [clauses head]} rule
         {:keys [vars]} head
 
-        vars-src vars
+        vars-src-pairs (split-rule-vars vars)
 
-        vars-mapping (zip vars-src vars-dst)
+        arity-dst (count vars-dst)
+        arity-src (count vars-src-pairs)
+
+        _ (when-not (= arity-src arity-dst)
+            (error! "Arity error in rule %s" rule-name))
 
         vm-dst (:vm scope)
         vm-src (vm/manager)
 
+        _ (doseq [[var-dst [var-src req?]]
+                  (zip vars-dst vars-src-pairs)]
 
+            (if req?
+
+              (let [val (vm/get-val vm-dst var-dst)]
+                (vm/bind vm-src var-src val))
+
+              (when (vm/bound? vm-dst var-dst)
+                (let [val (vm/get-val vm-dst var-dst)]
+                  (vm/bind vm-src var-src val)))))
 
         scope (assoc scope :vm vm-src)
 
-        ]
+        result (process-clauses scope clauses)]
 
-    ;; fill initial vars
+    (println @vm-dst)
+    (println @vm-src)
 
-    (process-clauses scope clauses)
+    (doseq [[var-dst [var-src req?]]
+            (zip vars-dst vars-src-pairs)]
 
-    ;; backfill vars
-    (doseq [[var-src var-dst] vars-mapping]
-      (let [val (vm/get-val vm-src var-src)]
-        (vm/bind vm-dst var-dst val)))))
+      (when-not (vm/bound? vm-dst var-dst)
+        (let [val (vm/get-val vm-src var-src)]
+          (vm/bind vm-dst var-dst val))))
+
+    (join-and result)))
 
 
 (defn- add-clause
@@ -533,7 +578,8 @@
 
 (defn- join-*
   [op clauses]
-  (into [op] (filter some? clauses)))
+  (when-let [clauses* (not-empty (filter some? clauses))]
+    (into [op] clauses*)))
 
 
 (def join-and (partial join-* :and))
@@ -556,52 +602,55 @@
   [{:as scope :keys [qb]}
    clauses]
 
-  (for [clause clauses]
-    (let [[tag clause] clause]
+  (doall
 
-      (case tag
+   (for [clause clauses]
 
-        :or-clause
-        (with-lvl-up scope
-          (let [{:keys [clauses]} clause]
-            (join-or
-             (for [clause clauses]
-               (let [[tag clause] clause]
-                 (case tag
-                   :clause
-                   (join-and
-                    (process-clauses scope [clause]))
+     (let [[tag clause] clause]
 
-                   :and-clause
-                   (with-lvl-up scope
-                     (let [{:keys [clauses]} clause]
-                       (join-and
-                        (process-clauses scope clauses))))))))))
+       (case tag
 
-        :or-join-clause
-        (with-lvl-up scope
-          )
+         :or-clause
+         (with-lvl-up scope
+           (let [{:keys [clauses]} clause]
+             (join-or
+              (for [clause clauses]
+                (let [[tag clause] clause]
+                  (case tag
+                    :clause
+                    (join-and
+                     (process-clauses scope [clause]))
 
-        :not-clause
-        (vm/with-read-only
-          (with-lvl-up scope
-            (let [{:keys [clauses]} clause]
-              [:not
-               (join-and
-                (process-clauses scope clauses))])))
+                    :and-clause
+                    (with-lvl-up scope
+                      (let [{:keys [clauses]} clause]
+                        (join-and
+                         (process-clauses scope clauses))))))))))
 
-        :not-join-clause
-        (vm/with-read-only
-          (with-lvl-up scope
-            (let [{:keys [vars clauses]} clause]
-              (with-vm-subset scope vars
-                [:not
-                 (join-and
-                  (process-clauses scope clauses))]))))
+         ;; :or-join-clause
+         ;; (with-lvl-up scope
+         ;;   )
+
+         :not-clause
+         (vm/with-read-only
+           (with-lvl-up scope
+             (let [{:keys [clauses]} clause]
+               [:not
+                (join-and
+                 (process-clauses scope clauses))])))
+
+         :not-join-clause
+         (vm/with-read-only
+           (with-lvl-up scope
+             (let [{:keys [vars clauses]} clause]
+               (with-vm-subset scope vars
+                 [:not
+                  (join-and
+                   (process-clauses scope clauses))]))))
 
 
-        :expression-clause
-        (add-clause scope clause)))))
+         :expression-clause
+         (add-clause scope clause))))))
 
 
 (defn- process-where

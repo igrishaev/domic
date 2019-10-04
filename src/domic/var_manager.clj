@@ -26,6 +26,10 @@
 (defrecord VarManager
     [vars]
 
+  clojure.lang.IDeref
+
+  (deref [this] @vars)
+
   IVarManager
 
   (subset [this valiables]
