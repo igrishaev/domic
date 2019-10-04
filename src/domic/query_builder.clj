@@ -10,7 +10,7 @@
 
   (empty-from? [this])
 
-  (add-join [this clause])
+  (add-join [this table where])
 
   (add-left-join [this table where])
 
@@ -48,8 +48,8 @@
   (empty-from? [this]
     (-> @sql :from empty?))
 
-  (add-join [this clause]
-    (swap! sql h/merge-join clause))
+  (add-join [this table where]
+    (swap! sql h/merge-join table where))
 
   (add-left-join [this table where]
     (swap! sql h/merge-left-join table where))

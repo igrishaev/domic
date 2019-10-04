@@ -447,3 +447,8 @@
 
     {:elist (persistent! elist*)
      :pattern (persistent! pattern*)}))
+
+
+(into {} (for [[[kw] section] (partition 2 (partition-by #{:where :in :find} query))]
+                         [kw section]
+                         ))
