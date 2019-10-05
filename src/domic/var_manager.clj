@@ -1,6 +1,7 @@
 (ns domic.var-manager
   (:refer-clojure :exclude [bound?])
-  (:require [domic.error :refer [error!]]))
+  (:require
+   [domic.error :refer [error!]]))
 
 
 (def ^:dynamic *read-only* nil)

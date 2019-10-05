@@ -1,9 +1,10 @@
 (ns domic.pull2
   (:require
+   [domic.error :refer [error!]]
    [domic.attributes :as at]
+   [domic.query-params :as qp]
    [domic.attr-manager :as am]
    [domic.engine :as en]
-   [domic.sql-helpers :refer [adder]]
 
    [honeysql.core :as sql])
   (:import
@@ -32,87 +33,25 @@
 
 
 (defn pull*
-  [{:as scope :keys [en]}
+  [{:as scope :keys [en table]}
    ids & [attrs]]
 
-  (let [params* (transient {})
-        params*add (adder params*)
+  (when-not (seq ids)
+    (error! "Empty ids in pull!"))
 
-        ids*   (mapv params*add ids)
-        attrs* (mapv params*add attrs)
+  (let [qp (qp/params)
+        add-param (partial qp/add-alias)
+
+        ids*   (mapv add-param ids)
+        attrs* (mapv add-param attrs)
 
         sql (sql/build
              :select :*
-             :from :datoms4
+             :from table
              :where [:and
                      [:in :e ids*]
                      (when attrs [:in :a attrs*])])
 
-        params (persistent! params*)
-        query (sql/format sql params)]
+        query (sql/format sql @qp)]
 
     (en/query-rs en query (rs->datoms scope))))
-
-
-(defn pull*-refs
-  [{:as scope :keys [en]}
-   ids-ref attrs-ref & [attrs]]
-
-  (let [params*    (transient {})
-        params*add (adder params*)
-
-        ids-ref*   (mapv params*add ids-ref)
-        attrs-ref* (mapv params*add attrs-ref)
-        attrs*     (mapv params*add attrs)
-
-        v-cast (sql/call :cast :v :integer)
-
-        sub (sql/build
-             :select :e
-             :from :datoms4
-             :where [:and
-                     [:in v-cast ids-ref*]
-                     [:in :a attrs-ref*]])
-
-        sql (sql/build
-             :select :* :from :datoms4
-             :where [:and
-                     [:in :e sub]
-                     (when attrs [:in :a attrs*])])
-
-        params (persistent! params*)
-        query (sql/format sql params)]
-
-    (en/query-rs en query (rs->datoms scope))))
-
-#_
-(do
-
-  (def _attrs
-    [{:db/ident       :artist/name
-      :db/valueType   :db.type/string
-      :db/cardinality :db.cardinality/one}
-
-     {:db/ident       :release/artist
-      :db/valueType   :db.type/ref
-      :db/cardinality :db.cardinality/one
-      :db/isComponent true}
-
-     {:db/ident       :release/year
-      :db/valueType   :db.type/integer
-      :db/cardinality :db.cardinality/many}
-
-     {:db/ident       :release/tag
-      :db/valueType   :db.type/string
-      :db/cardinality :db.cardinality/many}])
-
-  (def _db
-    {:dbtype "postgresql"
-     :dbname "test"
-     :host "127.0.0.1"
-     :user "ivan"
-     :password "ivan"})
-
-  (def _scope
-    {:am (am/manager _attrs)
-     :en (en/engine _db)}))

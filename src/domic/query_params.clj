@@ -1,5 +1,6 @@
 (ns domic.query-params
   (:require
+   [domic.util :refer [extend-print]]
    [honeysql.core :as sql]))
 
 
@@ -40,3 +41,6 @@
 
 
 (def params? (partial instance? QueryParams))
+
+
+(extend-print QueryParams)

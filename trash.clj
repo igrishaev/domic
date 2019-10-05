@@ -567,3 +567,35 @@ org.postgresql.jdbc.PgArray
   {:db.type/string  :text
    :db.type/ref     :integer
    :db.type/integer :integer})
+
+
+(defn pull*-refs
+  [{:as scope :keys [en]}
+   ids-ref attrs-ref & [attrs]]
+
+  (let [params*    (transient {})
+        params*add (adder params*)
+
+        ids-ref*   (mapv params*add ids-ref)
+        attrs-ref* (mapv params*add attrs-ref)
+        attrs*     (mapv params*add attrs)
+
+        v-cast (sql/call :cast :v :integer)
+
+        sub (sql/build
+             :select :e
+             :from :datoms4
+             :where [:and
+                     [:in v-cast ids-ref*]
+                     [:in :a attrs-ref*]])
+
+        sql (sql/build
+             :select :* :from :datoms4
+             :where [:and
+                     [:in :e sub]
+                     (when attrs [:in :a attrs*])])
+
+        params (persistent! params*)
+        query (sql/format sql params)]
+
+    (en/query-rs en query (rs->datoms scope))))

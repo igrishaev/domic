@@ -3,8 +3,8 @@
    [clojure.set :as set]
 
    [domic.runtime :as runtime]
-   [domic.sql-helpers :refer [adder]]
-   [domic.error :refer [error!]]
+   [domic.query-params :as qp]
+   [domic.error :refer [error! error-case!]]
    [domic.attr-manager :as am]
    [domic.engine :as en]
    [domic.pull2 :refer [pull*]]
@@ -15,7 +15,8 @@
 ;; todo
 ;; resolve lookups
 ;; write log
-;; fix t and e nextval
+;; check history attrib
+;; process functions
 
 
 (defn- temp-id [] (str (gensym "e")))
@@ -68,9 +69,8 @@
 
   (let [next-id (runtime/new-id-sql scope)
 
-        ;; todo params
-        params* (transient {})
-        params*add (adder params*)
+        qp (qp/params)
+        add-param (partial qp/add-alias)
 
         to-insert* (transient [])
         to-delete* (transient [])
@@ -101,14 +101,16 @@
         (doseq [[func & args] tx-fns]
 
           (case func
-
             :db/retractEntity
-            (let [[e] args] ;; todo
-              1)
+            (let [[e] args]
+              (error! "Not implemented: %s" func))
 
             :db/cas
-            (let [[e a v v-new] args] ;; todo
-              2)))
+            (let [[e a v v-new] args]
+              (error! "Not implemented: %s" func))
+
+            ;; else
+            (error-case! func)))
 
         ;; process add/retract
         (doseq [[op e a v] datoms]
@@ -132,8 +134,8 @@
                          v [v])]
                 (doseq [v* vm]
                   (let [row {:e next-id
-                             :a (params*add a)
-                             :v (params*add v*)
+                             :a (add-param a)
+                             :v (add-param v*)
                              :t t}]
                     (conj! to-insert* row))))
 
@@ -148,14 +150,14 @@
 
                     (doseq [v-add vals-add]
                       (let [row {:e e
-                                 :a (params*add a)
-                                 :v (params*add v-add)
+                                 :a (add-param a)
+                                 :v (add-param v-add)
                                  :t t}]
                         (conj! to-insert* row))))
 
                   (let [[{:keys [id]}] p*]
                     (conj! to-update* {:id id
-                                       :v (params*add v)
+                                       :v (add-param v)
                                        :t t})))
 
                 (error! "Entity %s not found!" e))
@@ -163,9 +165,7 @@
               :else
               (error! "Wrong entity type: %s" e))))
 
-        (let [params (persistent! params*)
-
-              to-insert (-> to-insert*
+        (let [to-insert (-> to-insert*
                             persistent!
                             not-empty)
 
@@ -183,23 +183,23 @@
              en {:insert-into table
                  :columns [:e :a :v :t]
                  :values
-                 (map (juxt :e :a :v :t) to-insert)}
-             params))
+                 (mapv (juxt :e :a :v :t) to-insert)}
+             @qp))
 
           ;; update
           (when to-update
             (doseq [{:keys [id v]} to-update]
               (en/execute-map
                en {:update table
-                   :set {:v v} ;; todo: set param
+                   :set {:v (add-param v)}
                    :where [:= :id id]}
-               params)))
+               @qp)))
 
           ;; delete
           (when to-delete
             (en/execute-map
              en {:delete-from table
                  :where [:in :id to-delete]}
-             params)))
+             @qp)))
 
         nil))))

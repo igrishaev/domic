@@ -3,6 +3,8 @@
    [domic.util :refer [join]]
    [honeysql.core :as sql]))
 
+;; todo
+;; drop adder
 
 (defn ->cast
   [field type]
