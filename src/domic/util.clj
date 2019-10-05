@@ -1,5 +1,6 @@
 (ns domic.util
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str])
+  (:import clojure.lang.IPersistentMap))
 
 
 (def join (partial str/join ", "))
@@ -30,3 +31,10 @@
       (when (some? v)
         (assoc! map* k v)))
     (persistent! map*)))
+
+
+(defmacro extend-print
+  [MapClass]
+  `(defmethod print-method ~MapClass
+     [~'o ~'w]
+     ((get-method print-method IPersistentMap) ~'o ~'w)))

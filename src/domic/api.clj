@@ -1,14 +1,34 @@
 (ns domic.api
   (:require
    [domic.engine :as en]
+   [domic.init :as init]
    [domic.attr-manager :as am]))
 
 
 (defn ->scope
-  [db-spec attrs]
-  (let [en (en/engine db-spec)
+  [db-spec attrs & [{:keys [table prefix]
+                     :or {table :datoms
+                          prefix ""}}]]
+
+  (let [table*    (str prefix (name table))
+        table-log (str table* "_log")
+        table-trx (str table* "_trx")
+        table-seq (str table* "_seq")
+
+        en (en/engine db-spec)
         am (am/manager attrs)]
-    {:en en :am am}))
+
+    {:en en
+     :am am
+     :table     (keyword table*)
+     :table-log (keyword table-log)
+     :table-trx (keyword table-trx)
+     :table-seq (keyword table-seq)}))
+
+
+(defn init
+  [scope]
+  (init/init scope))
 
 
 (defn pull
@@ -64,4 +84,8 @@
 
       {:db/ident       :release/tag
        :db/valueType   :db.type/string
-       :db/cardinality :db.cardinality/many}])))
+       :db/cardinality :db.cardinality/many}]
+
+     {:prefix "__test_"}
+
+     )))

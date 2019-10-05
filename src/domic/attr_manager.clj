@@ -1,8 +1,8 @@
 (ns domic.attr-manager
   (:require
    [domic.attributes :as at]
-   [domic.error :refer [error!]])
-  (:import java.sql.ResultSet))
+   [domic.util :refer [extend-print]]
+   [domic.error :refer [error!]]))
 
 
 (defn- group-attrs
@@ -17,23 +17,37 @@
 
 (defprotocol IAttrManager
 
+  (index? [this attr])
+
   (component? [this attr])
 
   (by-wildcard [this attr])
 
-  (is-ref? [this attr])
+  (ref? [this attr])
+
+  (unique? [this attr])
 
   (multiple? [this attr])
 
   (get-type [this attr])
 
-  (get-db-type [this attr]))
+  (db-type [this attr]))
 
 
 (defrecord AttrManager
     [attr-map]
 
+  clojure.lang.IDeref
+
+  (deref [this] (keys attr-map))
+
   IAttrManager
+
+  (index? [this attr]
+    (get-in attr-map [attr :db/index]))
+
+  (unique? [this attr]
+    (get-in attr-map [attr :db/unique]))
 
   (component? [this attr]
     (some-> attr-map
@@ -47,7 +61,7 @@
             :when (= (namespace a-key) a-ns)]
         a-key)))
 
-  (is-ref? [this attr]
+  (ref? [this attr]
     (some-> attr-map
             (get attr)
             :db/valueType
@@ -62,7 +76,7 @@
   (get-type [this attr]
     (get-in attr-map [attr :db/valueType]))
 
-  (get-db-type [this attr]
+  (db-type [this attr]
     (let [a-type (get-type this attr)]
       (at/->db-type a-type))))
 
@@ -75,3 +89,6 @@
                     (concat attr-list)
                     group-attrs)]
      (->AttrManager attrs*))))
+
+
+(extend-print AttrManager)

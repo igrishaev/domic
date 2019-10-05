@@ -10,6 +10,8 @@
 
 (def defaults
 
+  ;; :db/txInstant
+
   [{:db/ident       :db/ident
     :db/valueType   :db.type/string
     :db/cardinality :db.cardinality/one}

@@ -1,8 +1,10 @@
 (ns domic.engine
   (:refer-clojure :exclude [update])
   (:require
-   [clojure.java.jdbc :as jdbc]
    [domic.util :refer [kw->str]]
+   [domic.util :refer [extend-print]]
+
+   [clojure.java.jdbc :as jdbc]
    [honeysql.core :as sql])
   (:import
    [clojure.lang Keyword Symbol]))
@@ -19,7 +21,9 @@
 
 (defprotocol IEngine
 
-  (execute
+  (execute [this query])
+
+  (execute-map
     [this sql-map]
     [this sql-map params])
 
@@ -36,15 +40,22 @@
 (defrecord Engine
     [db-spec]
 
+  clojure.lang.IDeref
+
+  (deref [this] db-spec)
+
   IEngine
 
   (query-rs [this query rs-fn]
     (jdbc/db-query-with-resultset db-spec query rs-fn))
 
-  (execute [this sql-map]
-    (execute this sql-map nil))
+  (execute [this query]
+    (jdbc/execute! db-spec query))
 
-  (execute [this sql-map params]
+  (execute-map [this sql-map]
+    (execute-map this sql-map nil))
+
+  (execute-map [this sql-map params]
     (jdbc/execute! db-spec (sql/format sql-map params)))
 
   (query [this query]
@@ -70,3 +81,6 @@
 
   (sql-value [val]
     (kw->str val)))
+
+
+(extend-print Engine)
