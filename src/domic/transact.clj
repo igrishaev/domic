@@ -2,9 +2,10 @@
   (:require
    [clojure.set :as set]
 
+   [domic.util :as util]
    [domic.runtime :as runtime]
    [domic.query-params :as qp]
-   [domic.error :refer [error! error-case!]]
+   [domic.error :as e]
    [domic.attr-manager :as am]
    [domic.engine :as en]
    [domic.pull2 :refer [pull*]]
@@ -14,6 +15,7 @@
 
 ;; todo
 ;; resolve lookups
+;; check refs, eids, etc
 ;; write log
 ;; check history attrib
 ;; process functions
@@ -55,10 +57,45 @@
               (conj! datoms* [:db/add e a v]))))
 
         :else
-        (error! "Wrong tx-node: %s" tx-node)))
+        (e/error! "Wrong tx-node: %s" tx-node)))
 
     {:datoms (persistent! datoms*)
      :tx-fns (persistent! tx-fns*)}))
+
+
+(defn validate-tx-data
+  [{:as scope :keys [am]}
+   datoms]
+
+  ;; (println datoms)
+
+  (let [ids* (transient #{})]
+
+    (doseq [[_ e a v] datoms]
+
+      (when-not (am/known? am a)
+        (e/error! "Unknown attribute: %s" a))
+
+      (when (real-id? e)
+        (conj! ids* e))
+
+      (when (am/ref? am a)
+        (conj! ids* v)))
+
+    (if-let [ids (-> ids* persistent! not-empty)]
+
+      (let [pull (pull* scope ids)
+            ids-found (->> pull (map :e) set)
+            ids-left (set/difference ids ids-found)
+            ids-count (count ids-left)]
+
+        (cond
+          (> ids-count 1)
+          (e/error! "Entities %s are not found"
+                    (util/join ids-left))
+          (= ids-count 1)
+          (e/error! "Entity %s is not found"
+                    (first ids-left)))))))
 
 
 (defn transact
@@ -82,11 +119,13 @@
         {:keys [datoms tx-fns]}
         (prepare-tx-data scope tx-data)
 
+        _ (validate-tx-data scope datoms)
+
         elist
-        (for [[_ e] datoms :when (real-id? e)] e)
+        (set (for [[_ e] datoms :when (real-id? e)] e))
 
         alist
-        (for [[_ _ a] datoms] a)]
+        (set (for [[_ _ a] datoms] a))]
 
     (en/with-tx [en en]
 
@@ -106,14 +145,14 @@
           (case func
             :db/retractEntity
             (let [[e] args]
-              (error! "Not implemented: %s" func))
+              (e/error! "Not implemented: %s" func))
 
             :db/cas
             (let [[e a v v-new] args]
-              (error! "Not implemented: %s" func))
+              (e/error! "Not implemented: %s" func))
 
             ;; else
-            (error-case! func)))
+            (e/error-case! func)))
 
         ;; process add/retract
         (doseq [[op e a v] datoms]
@@ -127,7 +166,7 @@
                 (doseq [id ids]
                   (conj! to-delete* id)))
 
-              (error! "Entity %s not found!" e))
+              (e/error! "Entity %s not found!" e))
 
             :db/add
             (cond
@@ -140,30 +179,31 @@
                 (conj! to-insert* row))
 
               (real-id? e)
-              (if-let [p* (get p-ea [e a])]
+              (let [p* (get p-ea [e a])]
 
                 (if (am/multiple? am a)
 
-                  (let [vals-old (set (map :v p*))
-                        vals-new (set v)
-                        vals-add (set/difference vals-new vals-old)]
+                  (when (or (nil? p*)
+                            (not (contains? (set (map :v p*)) v)))
+                    (let [row {:e e
+                               :a (add-param a)
+                               :v (add-param v)
+                               :t t}]
+                      (conj! to-insert* row)))
 
-                    (doseq [v-add vals-add]
-                      (let [row {:e e
-                                 :a (add-param a)
-                                 :v (add-param v-add)
-                                 :t t}]
-                        (conj! to-insert* row))))
-
-                  (let [[{:keys [id]}] p*]
-                    (conj! to-update* {:id id
-                                       :v (add-param v)
-                                       :t t})))
-
-                (error! "Entity %s not found!" e))
+                  (if p*
+                    (let [[{:keys [id]}] p*]
+                      (conj! to-update* {:id id
+                                         :v (add-param v)
+                                         :t t}))
+                    (let [row {:e e
+                               :a (add-param a)
+                               :v (add-param v)
+                               :t t}]
+                      (conj! to-insert* row)))))
 
               :else
-              (error! "Wrong entity type: %s" e))))
+              (e/error! "Wrong entity type: %s" e))))
 
         (let [to-insert (-> to-insert*
                             persistent!
@@ -191,7 +231,7 @@
             (doseq [{:keys [id v]} to-update]
               (en/execute-map
                en {:update table
-                   :set {:v (add-param v)}
+                   :set {:v v}
                    :where [:= :id id]}
                @qp)))
 

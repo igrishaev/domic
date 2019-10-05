@@ -599,3 +599,11 @@ org.postgresql.jdbc.PgArray
         query (sql/format sql params)]
 
     (en/query-rs en query (rs->datoms scope))))
+
+
+(clojure.pprint/pprint
+            (domic.transact/prepare-tx-data
+            _scope [{:release/artist 100
+                              :release/year 1995
+                              :release/tag ["blues" "jazz"]}
+                             ]))

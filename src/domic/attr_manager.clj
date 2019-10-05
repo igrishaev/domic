@@ -17,6 +17,8 @@
 
 (defprotocol IAttrManager
 
+  (known? [this attr])
+
   (index? [this attr])
 
   (component? [this attr])
@@ -42,6 +44,9 @@
   (deref [this] (keys attr-map))
 
   IAttrManager
+
+  (known? [this attr]
+    (contains? attr-map attr))
 
   (index? [this attr]
     (get-in attr-map [attr :db/index]))
