@@ -607,3 +607,48 @@ org.postgresql.jdbc.PgArray
                               :release/year 1995
                               :release/tag ["blues" "jazz"]}
                              ]))
+
+{:datoms
+ [[:db/add "e35841" :release/artist 100]
+  [:db/add "e35841" :release/year 1995]
+  [:db/add "e35841" :release/tag "blues"]
+  [:db/add "e35841" :release/tag "jazz"]],
+ :tx-fns []}
+
+
+(clojure.pprint/pprint
+            (domic.transact/fffffffff
+            _scope
+
+            [[:db/add 3333 :release/artist [:foo/ssf 42]]
+             [:db/add "e35841" :release/year 1995]
+             [:db/add [:release/artist 999] :release/tag "dsdfs"]
+             [:db/add 555 :release/tag "jazz"]]
+            ))
+
+
+{:db/id [:user/email "test@test.com"]
+ :user/name "Hello"
+ :user/age 1999
+ }
+
+[[[:user/email "test@test.com"] :user/name "sdfsdf"
+  [:user/email "test@test.com"] :user/age 1999]
+ ]
+
+
+[[1 :user/name "sdfsdf"
+  1 :user/age 1999]
+ ]
+
+
+{:db/id [:user/email "test@test.com"]
+ :user/api-key "USHDFOIJSDFIJSFS"
+ :user/age 1999
+ }
+
+                      1                          2
+
+[[:db/add [:user/email "test@test.com"] :user/api-key "USHDFOIJSDFIJSFS"]
+ [:db/add [:user/email "test@test.com"] :user/age 15342323]
+]

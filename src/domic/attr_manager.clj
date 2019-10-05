@@ -17,6 +17,12 @@
 
 (defprotocol IAttrManager
 
+  (-get-field [this attr field])
+
+  (-has-field? [this attr field])
+
+  (-field-equal? [this attr field value])
+
   (known? [this attr])
 
   (index? [this attr])
@@ -28,6 +34,10 @@
   (ref? [this attr])
 
   (unique? [this attr])
+
+  (unique-value? [this attr])
+
+  (unique-identity? [this attr])
 
   (multiple? [this attr])
 
@@ -45,19 +55,38 @@
 
   IAttrManager
 
+  (-get-field [this attr field]
+    (get-in attr-map [attr field]))
+
+  (-has-field? [this attr field]
+    (some? (-get-field this attr field)))
+
+  (-field-equal? [this attr field value]
+    (= (-get-field this attr field) value))
+
   (known? [this attr]
     (contains? attr-map attr))
 
   (index? [this attr]
-    (get-in attr-map [attr :db/index]))
+    (-has-field? this attr :db/index))
+
+  (unique-value? [this attr]
+    (-field-equal? this attr :db/unique :db.unique/value))
+
+  (unique-identity? [this attr]
+    (-field-equal? this attr :db/unique :db.unique/identity))
 
   (unique? [this attr]
-    (get-in attr-map [attr :db/unique]))
+    (-has-field? this attr :db/unique))
 
   (component? [this attr]
-    (some-> attr-map
-            (get attr)
-            :db/isComponent))
+    (-field-equal? this attr :db/isComponent true))
+
+  (multiple? [this attr]
+    (-field-equal? this attr :db/cardinality :db.cardinality/many))
+
+  (ref? [this attr]
+    (-field-equal? this attr :db/valueType :db.type/ref))
 
   (by-wildcard [this attr]
     (let [a-ns (namespace attr)
@@ -65,18 +94,6 @@
       (for [a-key a-keys
             :when (= (namespace a-key) a-ns)]
         a-key)))
-
-  (ref? [this attr]
-    (some-> attr-map
-            (get attr)
-            :db/valueType
-            (= :db.type/ref)))
-
-  (multiple? [this attr]
-    (some-> attr-map
-            (get attr)
-            :db/cardinality
-            (= :db.cardinality/many)))
 
   (get-type [this attr]
     (get-in attr-map [attr :db/valueType]))

@@ -9,6 +9,8 @@
    java.util.UUID
    java.sql.ResultSet))
 
+;; todo
+;; bytes -> base64
 
 ;; :db.type/keyword - Value type for keywords. Keywords are used as names, and are interned for efficiency. Keywords map to the native interned-name type in languages that support them.
 ;; :db.type/symbol  - Value type for symbols. Symbols map to the symbol type in languages that support them, e.g. clojure.lang.Symbol in Clojure
@@ -117,7 +119,7 @@
     :db.type/uuid    :uuid
     :db.type/uri     :text
     :db.type/tuple   (e/error! "Tuples are not implemented")
-    :db.type/bytes  :bytea
+    :db.type/bytes   (e/error! "Bytes are not implemented")
 
     ;; else
     (e/error-case! valueType)))

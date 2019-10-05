@@ -2,13 +2,14 @@
   (:require
    [clojure.set :as set]
 
+   [domic.sql-helpers :as h]
    [domic.util :as util]
    [domic.runtime :as runtime]
    [domic.query-params :as qp]
    [domic.error :as e]
    [domic.attr-manager :as am]
    [domic.engine :as en]
-   [domic.pull2 :refer [pull*]]
+   [domic.pull2 :as p2]
 
    [honeysql.core :as sql]))
 
@@ -63,6 +64,98 @@
      :tx-fns (persistent! tx-fns*)}))
 
 
+(defn collect-ident-info
+  [{:as scope :keys [am]}
+   datoms]
+
+  (let [ids* (transient #{})
+        avs* (transient #{})]
+
+    (doseq [[_ e a v] datoms]
+
+      (when (real-id? e)
+        (conj! ids* e))
+
+      (when (h/lookup? e)
+        (conj! avs* e))
+
+      (when (am/unique? am a)
+        (conj! avs* [a v]))
+
+      (when (am/ref? am a)
+
+        (when (real-id? v)
+          (conj! ids* v))
+
+        (when (h/lookup? v)
+          (conj! avs* v))))
+
+    [(persistent! ids*) (persistent! avs*)]))
+
+
+(defn pull-idents
+  [{:as scope :keys [am]}
+   ids avs]
+  (p2/pull*-idents scope ids avs))
+
+
+(defn fix-datoms
+  [{:as scope :keys [am]}
+   datoms pull]
+
+  (let [pull-es (set (map :e pull))
+        pull-av (group-by (juxt :a :v) pull)
+
+        get-e!
+        (fn [e]
+          (or (get pull-es e)
+              (e/error! "Cannot resolve id %s" e)))
+
+        get-av!
+        (fn [av]
+          (or (first (get pull-av av))
+              (e/error! "Cannot find lookup %s" av)))]
+
+
+    (for [datom datoms]
+
+      (let [[op e a v] datom
+
+            e (cond
+                (real-id? e)
+                (get-e! e)
+
+                (h/lookup? e)
+                (get-av! e)
+
+                :else e)
+
+            v (cond
+
+                (am/ref? am a)
+                (cond
+                  (real-id? v)
+                  (get-e! v)
+
+                  (h/lookup? v)
+                  (get-av! v)
+
+                  :else v)
+                :else v)
+
+            ;; todo check idents
+            ]
+
+        (when (and (am/unique-value? am a)
+
+
+                   )
+
+          )
+
+        [op e a v]))))
+
+
 (defn validate-tx-data
   [{:as scope :keys [am]}
    datoms]
@@ -84,7 +177,7 @@
 
     (if-let [ids (-> ids* persistent! not-empty)]
 
-      (let [pull (pull* scope ids)
+      (let [pull (p2/pull* scope ids)
             ids-found (->> pull (map :e) set)
             ids-left (set/difference ids ids-found)
             ids-count (count ids-left)]
@@ -129,11 +222,12 @@
 
     (en/with-tx [en en]
 
+      ;; todo: duplicate query
       (let [scope (assoc scope :en en)
 
             p (when (and (not-empty elist)
                          (not-empty alist))
-                (pull* scope elist alist))
+                (p2/pull* scope elist alist))
 
             p-ea (group-by (juxt :e :a) p)
 

@@ -82,6 +82,7 @@
 
       {:db/ident       :release/year
        :db/valueType   :db.type/long
+       :db/unique      :db.unique/identity
        :db/cardinality :db.cardinality/one}
 
       {:db/ident       :release/tag
