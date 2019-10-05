@@ -2,6 +2,7 @@
   (:require
    [clojure.set :as set]
 
+   [domic.runtime :as runtime]
    [domic.sql-helpers :refer [adder]]
    [domic.error :refer [error!]]
    [domic.attr-manager :as am]
@@ -27,6 +28,7 @@
 (defn- prepare-tx-data
   [{:as scope :keys [am]}
    tx-data]
+
   (let [datoms* (transient [])
         tx-fns* (transient [])]
 
@@ -58,12 +60,15 @@
 
 
 (defn transact
-  [{:as scope :keys [en am]}
+  [{:as scope :keys [table
+                     table-trx
+                     table-seq
+                     en am]}
    tx-data]
 
-  (let [call-nextval
-        (sql/call :nextval "_foo")
+  (let [next-id (runtime/new-id-sql scope)
 
+        ;; todo params
         params* (transient {})
         params*add (adder params*)
 
@@ -90,7 +95,7 @@
 
             p-ea (group-by (juxt :e :a) p)
 
-            t (rand-int 999999999)] ;; todo
+            t (runtime/get-new-id scope)]
 
         ;; process tx functions
         (doseq [[func & args] tx-fns]
@@ -126,7 +131,7 @@
               (let [vm (if (am/multiple? am a)
                          v [v])]
                 (doseq [v* vm]
-                  (let [row {:e call-nextval
+                  (let [row {:e next-id
                              :a (params*add a)
                              :v (params*add v*)
                              :t t}]
@@ -174,67 +179,27 @@
 
           ;; insert
           (when to-insert
-            (en/execute en {:insert-into :datoms4
-                            :columns [:e :a :v :t]
-                            :values
-                            (map (juxt :e :a :v :t) to-insert)}
-                        params))
+            (en/execute-map
+             en {:insert-into table
+                 :columns [:e :a :v :t]
+                 :values
+                 (map (juxt :e :a :v :t) to-insert)}
+             params))
 
           ;; update
           (when to-update
             (doseq [{:keys [id v]} to-update]
-              (en/execute en {:update :datoms4
-                              :set {:v v} ;; todo: set param
-                              :where [:= :id id]}
-                          params)))
+              (en/execute-map
+               en {:update table
+                   :set {:v v} ;; todo: set param
+                   :where [:= :id id]}
+               params)))
 
           ;; delete
           (when to-delete
-            (en/execute en {:delete-from :datoms4
-                            :where [:in :id to-delete]}
-                        params)))
+            (en/execute-map
+             en {:delete-from table
+                 :where [:in :id to-delete]}
+             params)))
 
         nil))))
-
-
-#_
-(do
-
-  (transact _scope
-            [{:db/id 336943376
-              :release/artist 999
-              ;; :release/year 333
-              ;; :release/tag ["dd0" "bbb0"]
-              }]))
-
-#_
-(do
-
-  (def _attrs
-    [{:db/ident       :artist/name
-      :db/valueType   :db.type/string
-      :db/cardinality :db.cardinality/one}
-
-     {:db/ident       :release/artist
-      :db/valueType   :db.type/ref
-      :db/cardinality :db.cardinality/one
-      :db/isComponent true}
-
-     {:db/ident       :release/year
-      :db/valueType   :db.type/integer
-      :db/cardinality :db.cardinality/many}
-
-     {:db/ident       :release/tag
-      :db/valueType   :db.type/string
-      :db/cardinality :db.cardinality/many}])
-
-  (def _db
-    {:dbtype "postgresql"
-     :dbname "test"
-     :host "127.0.0.1"
-     :user "ivan"
-     :password "ivan"})
-
-  (def _scope
-    {:am (am/manager _attrs)
-     :en (en/engine _db)}))

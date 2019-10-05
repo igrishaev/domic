@@ -85,7 +85,7 @@
   ([]
    (manager nil))
   ([attr-list]
-   (let [attrs* (-> attr-defaults
+   (let [attrs* (-> at/defaults
                     (concat attr-list)
                     group-attrs)]
      (->AttrManager attrs*))))

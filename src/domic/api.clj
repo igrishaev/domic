@@ -1,5 +1,6 @@
 (ns domic.api
   (:require
+   [domic.transact :as transact]
    [domic.engine :as en]
    [domic.init :as init]
    [domic.attr-manager :as am]))
@@ -52,7 +53,8 @@
 
 
 (defn transact
-  [])
+  [scope tx-data]
+  (transact/transact scope tx-data))
 
 
 #_

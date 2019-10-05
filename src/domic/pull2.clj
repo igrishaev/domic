@@ -1,5 +1,6 @@
 (ns domic.pull2
   (:require
+   [domic.attributes :as at]
    [domic.attr-manager :as am]
    [domic.engine :as en]
    [domic.sql-helpers :refer [adder]]
@@ -13,11 +14,11 @@
   [{:as scope :keys [am]}
    ^ResultSet rs]
   (let [attr (keyword (.getString rs 3))
-        attr-type (am/get-db-type am attr)]
+        attr-type (am/get-type am attr)]
     {:id (.getLong rs 1)
      :e  (.getLong rs 2)
      :a  attr
-     :v  (am/rs->clj attr-type rs 4)
+     :v  (at/rs->clj attr-type rs 4)
      :t  (.getLong rs 5)}))
 
 

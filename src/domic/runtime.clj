@@ -1,6 +1,7 @@
 (ns domic.runtime
   (:require
    [domic.error :refer [error!]]
+   [domic.sql-helpers :refer [->cast]]
    [domic.query-builder :as qb]
    [domic.query-params :as qp]
    [domic.attr-manager :as am]
@@ -10,12 +11,11 @@
 
 
 (defn resolve-lookup
-  [{:as scope :keys [en am]}
-   lookup]
+  [{:as scope :keys [table
+                     en am]}
+   [a v]]
 
-  (let [[a v] lookup
-
-        qb (qb/builder)
+  (let [qb (qb/builder)
         qp (qp/params)
 
         alias-a :a
@@ -24,15 +24,15 @@
         param-a (sql/param alias-a)
         param-v (sql/param alias-v)
 
-        pg-type (am/get-pg-type am a)]
+        db-type (am/db-type am a)]
 
     (qp/add-param qp alias-a a)
     (qp/add-param qp alias-v v)
 
     (qb/add-select qb :e)
-    (qb/add-from   qb :datoms4)
+    (qb/add-from   qb table)
     (qb/add-where  qb [:= :a param-a])
-    (qb/add-where  qb [:= :v param-v])
+    (qb/add-where  qb [:= (->cast :v db-type) param-v])
     (qb/set-limit  qb 1)
 
     (-> (->> (qp/get-params qp)
@@ -40,7 +40,23 @@
              (en/query en))
         first :e)))
 
+
 (defn resolve-lookup!
   [scope lookup]
   (or (resolve-lookup scope lookup)
       (error! "Lookup failed: %s" lookup)))
+
+
+(defn new-id-sql
+  [{:as scope :keys [table-seq]}]
+  (sql/call :nextval (name table-seq)))
+
+
+(defn get-new-id
+  [{:as scope :keys [en]}]
+
+  (let [call (new-id-sql scope)
+        sql {:select [[call :e]]}]
+
+    (-> (en/query en (sql/format sql))
+        first :e)))

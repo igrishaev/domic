@@ -72,17 +72,13 @@
    [:a  :text    "not null"]
    [:v  :text    "not null"]])
 
+(def ddl-table-trx ddl-base)
+
 (def ddl-table
-  (conj table-base
-        [:t  :integer "not null"]))
-
-(def ddl-table-trx
-  table-base)
-
+  (conj ddl-base [:t :integer "not null"]))
 
 (def ddl-table-log
-  (conj table-datoms
-        [:op  :boolean "not null"]))
+  (conj ddl-table-trx [:op :boolean "not null"]))
 
 (defn init-tables
   [{:as scope :keys [en
