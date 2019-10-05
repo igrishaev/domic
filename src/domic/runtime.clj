@@ -47,15 +47,11 @@
       (error! "Lookup failed: %s" lookup)))
 
 
-(defn new-id-sql
-  [{:as scope :keys [table-seq]}]
-  (sql/call :nextval (name table-seq)))
-
-
 (defn get-new-id
-  [{:as scope :keys [en]}]
+  [{:as scope :keys [en
+                     table-seq]}]
 
-  (let [call (new-id-sql scope)
+  (let [call (sql/call :nextval (name table-seq))
         sql {:select [[call :e]]}]
 
     (-> (en/query en (sql/format sql))

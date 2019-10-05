@@ -77,11 +77,11 @@
 
       {:db/ident       :release/artist
        :db/valueType   :db.type/ref
-       :db/cardinality :db.cardinality/many
+       :db/cardinality :db.cardinality/one
        :db/isComponent true}
 
       {:db/ident       :release/year
-       :db/valueType   :db.type/integer
+       :db/valueType   :db.type/long
        :db/cardinality :db.cardinality/one}
 
       {:db/ident       :release/tag

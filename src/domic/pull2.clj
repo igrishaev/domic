@@ -40,7 +40,7 @@
     (error! "Empty ids in pull!"))
 
   (let [qp (qp/params)
-        add-param (partial qp/add-alias)
+        add-param (partial qp/add-alias qp)
 
         ids*   (mapv add-param ids)
         attrs* (mapv add-param attrs)

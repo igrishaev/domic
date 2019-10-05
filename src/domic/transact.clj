@@ -26,7 +26,7 @@
 (def real-id? int?)
 
 
-(defn- prepare-tx-data
+(defn prepare-tx-data
   [{:as scope :keys [am]}
    tx-data]
 
@@ -47,6 +47,7 @@
         (map? tx-node)
         (let [e (or (:db/id tx-node)
                     (temp-id))]
+
           (doseq [[a v] (dissoc tx-node :db/id)]
             (if (am/multiple? am a)
               (doseq [v* v]
@@ -67,10 +68,12 @@
                      en am]}
    tx-data]
 
-  (let [next-id (runtime/new-id-sql scope)
+  (let [resolve-tmp-id
+        (memoize (fn [tmp-e]
+                   (runtime/get-new-id scope)))
 
         qp (qp/params)
-        add-param (partial qp/add-alias)
+        add-param (partial qp/add-alias qp)
 
         to-insert* (transient [])
         to-delete* (transient [])
@@ -130,14 +133,11 @@
             (cond
 
               (temp-id? e)
-              (let [vm (if (am/multiple? am a)
-                         v [v])]
-                (doseq [v* vm]
-                  (let [row {:e next-id
-                             :a (add-param a)
-                             :v (add-param v*)
-                             :t t}]
-                    (conj! to-insert* row))))
+              (let [row {:e (resolve-tmp-id e)
+                         :a (add-param a)
+                         :v (add-param v)
+                         :t t}]
+                (conj! to-insert* row))
 
               (real-id? e)
               (if-let [p* (get p-ea [e a])]
