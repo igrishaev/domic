@@ -111,16 +111,28 @@
           (or (get pull-es e)
               (e/error! "Cannot resolve id %s" e)))
 
+        get-av
+        (fn [av]
+          (:e (first (get pull-av av))))
+
         get-av!
         (fn [av]
-          (or (first (get pull-av av))
-              (e/error! "Cannot find lookup %s" av)))]
+          (or (get-av av)
+              (e/error! "Cannot find lookup %s" av)))
 
+        ;; e-cache (atom {})
+        ;; e-set! (fn [temp-id real-id]
+        ;;          (swap! e-cache assoc temp-id real-id))
+        ;; e-swap (fn [temp-id]
+        ;;          (get @e-cache temp-id temp-id))
+
+        ]
 
     (for [datom datoms]
 
       (let [[op e a v] datom
 
+            ;; resolve E
             e (cond
                 (real-id? e)
                 (get-e! e)
@@ -130,6 +142,7 @@
 
                 :else e)
 
+            ;; resolve V
             v (cond
 
                 (am/ref? am a)
@@ -143,19 +156,33 @@
                   :else v)
                 :else v)
 
-            ;; todo check idents
+            ;; unique/ident
+            e (if (am/unique-identity? am a)
+                (if-let [e* (get-av [a v])]
+                  (cond
+                    (temp-id? e) e*
+                    (and (real-id? e) (not= e e*))
+                    (e/error! "Conflict!"))
+                  e)
+                e)
+
+            ;; unique value
+            e (if (am/unique-value? am a)
+                (if-let [e* (get-av [a v])]
+                  (if (and (real-id? e) (not= e e*))
+                    (e/error! "Conflict!")
+                    e)
+                  e)
+                e)
             ]
-
-        (when (and (am/unique-value? am a)
-
-
-                   )
-
-          )
 
         [op e a v]))))
 
 
+
+
+
+#_
 (defn validate-tx-data
   [{:as scope :keys [am]}
    datoms]
@@ -212,7 +239,20 @@
         {:keys [datoms tx-fns]}
         (prepare-tx-data scope tx-data)
 
-        _ (validate-tx-data scope datoms)
+        [ids avs] (collect-ident-info scope datoms)
+
+        pull (pull-idents scope ids avs)
+
+        _ (clojure.pprint/pprint datoms)
+        _ (println "---")
+        _ (clojure.pprint/pprint pull)
+
+        datoms (fix-datoms scope datoms pull)
+
+        _ (println "---")
+        _ (clojure.pprint/pprint datoms)
+
+        ;; _ (validate-tx-data scope datoms)
 
         elist
         (set (for [[_ e] datoms :when (real-id? e)] e))
