@@ -72,11 +72,37 @@
       (conj! ors* [:in :e (mapv add-param eids)]))
 
     (doseq [[a v] av-pairs]
+
       (let [db-type (am/db-type am a)]
-        (conj! ors*
-               [:and
-                [:= :a (add-param a)]
-                [:= (h/->cast :v db-type) (add-param v)]])))
+
+        (if (vector? v)
+
+          (let [[a* v*] v
+                db-type* (am/db-type am a*)
+
+                sub
+                {:select [:e]
+                 :from [table]
+                 :where [:and
+                         [:= :a (add-param a*)]
+                         [:= (h/->cast :v db-type*)
+                          (add-param v*)]]
+                 :limit (sql/inline 1)}]
+
+            (conj! ors*
+                   [:and
+                    [:= :a (add-param a*)]
+                    [:= (h/->cast :v db-type*) (add-param v*)]])
+
+            (conj! ors*
+                   [:and
+                    [:= :a (add-param a)]
+                    [:= (h/->cast :v db-type) sub]]))
+
+          (conj! ors*
+                 [:and
+                  [:= :a (add-param a)]
+                  [:= (h/->cast :v db-type) (add-param v)]]))))
 
     (when-let [ors (-> ors* persistent! not-empty)]
       (let [sql (sql/build :select :*
