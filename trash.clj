@@ -687,3 +687,14 @@ org.postgresql.jdbc.PgArray
           (= ids-count 1)
           (e/error! "Entity %s is not found"
                     (first ids-left)))))))
+
+
+(let [datoms* (doall datoms1)]
+
+  (if (not-empty? @-cache)
+
+            (doall
+             (for [[op e a v] datoms*]
+               [op (cswap e) a v]))
+
+            datoms*))

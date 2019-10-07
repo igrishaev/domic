@@ -20,10 +20,7 @@
 ;; check history attrib
 ;; process functions
 
-;; remove validate func
-;; move into transaction block
 ;; get eids from db in batch
-;; check cache before the second pass
 
 
 (defn- temp-id [] (str (gensym "e")))
@@ -134,8 +131,9 @@
         cset! (fn [k v] (swap! -cache assoc k v))
         cswap (fn [k] (get @-cache k k))
 
-        datoms1
-        (for [datom datoms]
+        datoms* (transient [])
+        _
+        (doseq [datom datoms]
 
           (let [[op e a v] datom
 
@@ -163,6 +161,8 @@
                       :else v)
                     :else v)]
 
+            (conj! datoms* [op e a v])
+
             ;; unique/ident
             (when (am/unique-identity? am a)
               (when-let [e* (get-av [a v])]
@@ -180,17 +180,14 @@
                                (not= e e*)))
                   (e/error! (str "Value conflict: entity with AV [%s %s] "
                                  "already exists (%s)")
-                            a v e*))))
+                            a v e*))))))
 
-            [op e a v]))
+        datoms* (persistent! datoms*)]
 
-        ;; todo: check cache first
-        datoms2
-        (for [datom datoms1]
-          (let [[op e a v] datom]
-            [op (cswap e) a v]))]
-
-    (doall datoms2)))
+    (if (empty? @-cache)
+      datoms*
+      (doall (for [[op e a v] datoms*]
+               [op (cswap e) a v])))))
 
 
 (defn transact
