@@ -4,12 +4,15 @@
    [domic.util :as util]
    [domic.runtime :as runtime]
    [domic.query-params :as qp]
+   [domic.query-builder :as qb]
    [domic.error :as e]
    [domic.attr-manager :as am]
    [domic.engine :as en]
    [domic.pull2 :as p2]
 
-   [honeysql.core :as sql]))
+   [honeysql.core :as sql])
+  (:import
+   java.util.Date))
 
 
 ;; todo
@@ -18,14 +21,37 @@
 ;; check history attrib
 ;; process functions
 
-;; get eids from db in batch
-
 
 (defn- temp-id [] (str (gensym "e")))
 
 (def temp-id? string?)
 
 (def real-id? int?)
+
+
+(defn fetch-db-ids
+  [{:as scope :keys [table-seq
+                     en]}
+   temp-ids]
+  (when (seq temp-ids)
+    (let [qb (qb/builder)
+          nextval (sql/call :nextval (name table-seq))]
+      (doseq [temp-id temp-ids]
+        (qb/add-select qb [nextval temp-id]))
+      (first
+       (en/query en (qb/format qb) {:keywordize? false})))))
+
+
+(defn collect-temp-ids
+  [{:as scope :keys [am]}
+   datoms]
+  (let [temp-ids* (transient #{})]
+    (doseq [[_ e a v] datoms]
+      (when (temp-id? e)
+        (conj! temp-ids* e))
+      (when (and (am/ref? am a) (temp-id? v))
+        (conj! temp-ids* v)))
+    (-> temp-ids* persistent! not-empty)))
 
 
 (defn prepare-tx-data
@@ -202,12 +228,11 @@
                      en am]}
    tx-data]
 
-  (let [resolve-tmp-id
-        (memoize (fn [tmp-e]
-                   (runtime/get-new-id scope)))
-
-        qp (qp/params)
+  (let [qp (qp/params)
         add-param (partial qp/add-alias qp)
+
+        t-inst (new Date)
+        t-id   -1
 
         to-insert* (transient [])
         to-delete* (transient [])
@@ -220,12 +245,20 @@
 
     (en/with-tx [en en]
 
-      (let [pull   (pull-idents scope ids avs)
-            _      (validate-attrs! scope datoms)
-            datoms (fix-datoms scope datoms pull)
-            scope  (assoc scope :en en)
-            p-ea   (group-by (juxt :e :a) pull)
-            t      (runtime/get-new-id scope)]
+      (let [scope    (assoc scope :en en)
+
+            pull     (pull-idents scope ids avs)
+            _        (validate-attrs! scope datoms)
+            datoms   (fix-datoms scope datoms pull)
+            temp-ids (collect-temp-ids scope datoms)
+            t-tmp-id (str (gensym "tx"))
+            temp-ids (conj temp-ids t-tmp-id)
+            -ids-map   (fetch-db-ids scope temp-ids)
+            ->db-id  (fn [temp-id]
+                       (or (get -ids-map temp-id)
+                           (e/error! "Cannot resolve temp-id: %s" temp-id)))
+            t        (->db-id t-tmp-id)
+            p-ea     (group-by (juxt :e :a) pull)]
 
         ;; process tx functions
         (doseq [[func & args] tx-fns]
@@ -261,7 +294,7 @@
             (cond
 
               (temp-id? e)
-              (let [row {:e (resolve-tmp-id e)
+              (let [row {:e (->db-id e)
                          :a (add-param a)
                          :v (add-param v)
                          :t t}]
@@ -306,8 +339,18 @@
                             persistent!
                             not-empty)]
 
+          ;; transaction record
+          (en/execute-map
+           en {:insert-into table
+               :values [{:e t
+                         :a (add-param :db/txInstant)
+                         :v (add-param t-inst)
+                         :t (add-param t-id)}]}
+           @qp)
+
           ;; insert
           (when to-insert
+            (println to-insert)
             (en/execute-map
              en {:insert-into table
                  :columns [:e :a :v :t]
