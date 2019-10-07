@@ -1,7 +1,9 @@
 (ns domic.attr-manager
   (:require
+   [clojure.set :as set]
+
    [domic.attributes :as at]
-   [domic.util :refer [extend-print]]
+   [domic.util :as u]
    [domic.error :as e]))
 
 
@@ -22,6 +24,8 @@
   (-has-field? [this attr field])
 
   (-field-equal? [this attr field value])
+
+  (validate-many! [this attrs])
 
   (known? [this attr])
 
@@ -63,6 +67,13 @@
 
   (-field-equal? [this attr field value]
     (= (-get-field this attr field) value))
+
+  (validate-many! [this attrs]
+    (when-let [diff (not-empty
+                     (set/difference
+                      (set attrs)
+                      (set (keys attr-map))))]
+      (e/error! "Unknown attr(s): %s" (u/join diff))))
 
   (known? [this attr]
     (contains? attr-map attr))
@@ -115,4 +126,4 @@
      (->AttrManager attrs*))))
 
 
-(extend-print AttrManager)
+(u/extend-print AttrManager)

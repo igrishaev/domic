@@ -1,7 +1,5 @@
 (ns domic.transact
   (:require
-   [clojure.set :as set]
-
    [domic.sql-helpers :as h]
    [domic.util :as util]
    [domic.runtime :as runtime]
@@ -190,6 +188,13 @@
                [op (cswap e) a v])))))
 
 
+(defn validate-attrs!
+  [{:as scope :keys [am]}
+   datoms]
+  (let [attrs (map #(get % 2) datoms)]
+     (am/validate-many! am attrs)))
+
+
 (defn transact
   [{:as scope :keys [table
                      table-trx
@@ -216,6 +221,7 @@
     (en/with-tx [en en]
 
       (let [pull   (pull-idents scope ids avs)
+            _      (validate-attrs! scope datoms)
             datoms (fix-datoms scope datoms pull)
             scope  (assoc scope :en en)
             p-ea   (group-by (juxt :e :a) pull)
