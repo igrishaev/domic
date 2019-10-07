@@ -11,6 +11,10 @@
    [clojure.lang Keyword Symbol]))
 
 
+;; todo
+;; better transaction macros (mutable)
+
+
 (defmacro with-tx
   [[en-tx en & tx-opt] & body]
   `(let [db-spec# (:db-spec ~en)]

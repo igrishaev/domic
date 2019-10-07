@@ -13,7 +13,6 @@
 
   (let [table*    (str prefix (name table))
         table-log (str table* "_log")
-        table-trx (str table* "_trx")
         table-seq (str table* "_seq")
 
         en (en/engine db-spec)
@@ -23,7 +22,6 @@
      :am am
      :table     (keyword table*)
      :table-log (keyword table-log)
-     :table-trx (keyword table-trx)
      :table-seq (keyword table-seq)}))
 
 
@@ -89,6 +87,6 @@
        :db/valueType   :db.type/string
        :db/cardinality :db.cardinality/many}]
 
-     {:prefix "__test_"}
+     {:prefix "__test4_"}
 
      )))

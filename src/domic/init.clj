@@ -6,6 +6,8 @@
 
    [clojure.java.jdbc :as jdbc]))
 
+;; todo
+;; fix transaction macros
 
 (defn init-seq
   [{:as scope :keys [table-seq
@@ -30,11 +32,28 @@
 
 (defn init-indexes
   [{:as scope :keys [en am
-                     table
-                     table-trx]}]
+                     table]}]
 
-  ;; datoms
+  ;; E
+  (let [index-name (format "idx_%s_E" (name table))
+        index-sql (format "CREATE INDEX IF NOT EXISTS %s ON %s (e)"
+                          index-name (name table))]
+    (jdbc/execute! @en index-sql))
+
+  ;; T
+  (let [index-name (format "idx_%s_T" (name table))
+        index-sql (format "CREATE INDEX IF NOT EXISTS %s ON %s (t)"
+                          index-name (name table))]
+    (jdbc/execute! @en index-sql))
+
+  ;; Attributes: indexed, refs, unique
   (doseq [attr @am]
+
+    ;; EV
+    (let [index-name (format "idx_%s_EA" (name table))
+          index-sql (format "CREATE INDEX IF NOT EXISTS %s ON %s (e,a)"
+                            index-name (name table))]
+      (jdbc/execute! @en index-sql))
 
     ;; AV
     (when (or (am/index?  am attr)
@@ -43,61 +62,39 @@
 
       (let [db-type (am/db-type am attr)
             sql-index (sql-index-av table attr db-type)]
-        (jdbc/execute! @en sql-index)))
-
-    ;; E
-    (let [index-name (format "idx_%s_E" (name table))
-          index-sql (format "CREATE INDEX IF NOT EXISTS %s ON %s (e)"
-                            index-name (name table))]
-      (jdbc/execute! @en index-sql))
-
-    ;; EV
-    (let [index-name (format "idx_%s_EA" (name table))
-          index-sql (format "CREATE INDEX IF NOT EXISTS %s ON %s (e,a)"
-                            index-name (name table))]
-      (jdbc/execute! @en index-sql)))
-
-  ;; transactions
-
-  ;; E
-  (let [index-name (format "idx_%s_E" (name table-trx))
-        index-sql (format "CREATE INDEX IF NOT EXISTS %s ON %s (e)"
-                          index-name (name table))]
-    (jdbc/execute! @en index-sql)))
+        (jdbc/execute! @en sql-index)))))
 
 
-(def ddl-base
+(def ddl-table
   [[:id :serial  "primary key"]
    [:e  :integer "not null"]
    [:a  :text    "not null"]
-   [:v  :text    "not null"]])
+   [:v  :text    "not null"]
+   [:t  :integer "not null"]])
 
-(def ddl-table-trx ddl-base)
-
-(def ddl-table
-  (conj ddl-base [:t :integer "not null"]))
 
 (def ddl-table-log
-  (conj ddl-table-trx [:op :boolean "not null"]))
+  (conj ddl-table [:op :boolean "not null"]))
+
 
 (defn init-tables
   [{:as scope :keys [en
                      table
-                     table-trx
                      table-log]}]
 
   (let [opt {:conditional? true}
         tables
         [(jdbc/create-table-ddl table ddl-table opt)
-         (jdbc/create-table-ddl table-trx ddl-table-trx opt)
-         (jdbc/create-table-ddl table-log ddl-table-trx opt)]]
+         (jdbc/create-table-ddl table-log ddl-table-log opt)]]
 
     (doseq [table tables]
       (jdbc/execute! @en table))))
 
 
 (defn init
-  [scope]
-  (init-tables scope)
-  (init-indexes scope)
-  (init-seq scope))
+  [{:as scope :keys [en]}]
+  (en/with-tx [en en]
+    (let [scope (assoc scope :en en)]
+      (init-tables scope)
+      (init-indexes scope)
+      (init-seq scope))))
