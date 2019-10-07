@@ -21,6 +21,11 @@
 ;; check history attrib
 ;; process functions
 
+;; remove validate func
+;; move into transaction block
+;; get eids from db in batch
+;; check cache before the second pass
+
 
 (defn- temp-id [] (str (gensym "e")))
 
@@ -53,8 +58,14 @@
 
           (doseq [[a v] (dissoc tx-node :db/id)]
             (if (am/multiple? am a)
-              (doseq [v* v]
-                (conj! datoms* [:db/add e a v*]))
+
+              (if (coll? v)
+                (doseq [v* v]
+                  (conj! datoms* [:db/add e a v*]))
+                (e/error! (str "Attribute %s is of cardinality/many, "
+                               "but its value is not a collection: %s")
+                          a v))
+
               (conj! datoms* [:db/add e a v]))))
 
         :else
@@ -120,66 +131,67 @@
           (or (get-av av)
               (e/error! "Cannot find lookup %s" av)))
 
-        ;; e-cache (atom {})
-        ;; e-set! (fn [temp-id real-id]
-        ;;          (swap! e-cache assoc temp-id real-id))
-        ;; e-swap (fn [temp-id]
-        ;;          (get @e-cache temp-id temp-id))
+        -cache (atom {})
+        cset! (fn [k v] (swap! -cache assoc k v))
+        cswap (fn [k] (get @-cache k k))
 
-        ]
+        datoms1
+        (for [datom datoms]
 
-    (for [datom datoms]
+          (let [[op e a v] datom
 
-      (let [[op e a v] datom
+                ;; resolve E
+                e (cond
+                    (real-id? e)
+                    (get-e! e)
 
-            ;; resolve E
-            e (cond
-                (real-id? e)
-                (get-e! e)
+                    (h/lookup? e)
+                    (get-av! e)
 
-                (h/lookup? e)
-                (get-av! e)
+                    :else e)
 
-                :else e)
+                ;; resolve V
+                v (cond
 
-            ;; resolve V
-            v (cond
+                    (am/ref? am a)
+                    (cond
+                      (real-id? v)
+                      (get-e! v)
 
-                (am/ref? am a)
-                (cond
-                  (real-id? v)
-                  (get-e! v)
+                      (h/lookup? v)
+                      (get-av! v)
 
-                  (h/lookup? v)
-                  (get-av! v)
-
-                  :else v)
-                :else v)
+                      :else v)
+                    :else v)]
 
             ;; unique/ident
-            e (if (am/unique-identity? am a)
-                (if-let [e* (get-av [a v])]
-                  (cond
-                    (temp-id? e) e*
-                    (and (real-id? e) (not= e e*))
-                    (e/error! "Conflict!"))
-                  e)
-                e)
+            (when (am/unique-identity? am a)
+              (when-let [e* (get-av [a v])]
+                (when (temp-id? e)
+                  (cset! e e*))
+                (when (and (real-id? e) (not= e e*))
+                  (e/error! "Ident conflict: AV [%s %s] => %s, but E is %s"
+                            a v e* e))))
 
             ;; unique value
-            e (if (am/unique-value? am a)
-                (if-let [e* (get-av [a v])]
-                  (if (and (real-id? e) (not= e e*))
-                    (e/error! "Conflict!")
-                    e)
-                  e)
-                e)
-            ]
+            (when (am/unique-value? am a)
+              (when-let [e* (get-av [a v])]
+                (when (or (temp-id? e)
+                          (and (real-id? e)
+                               (not= e e*)))
+                  (e/error! (str "Value conflict: entity with AV [%s %s] "
+                                 "already exists (%s)")
+                            a v e*))))
 
-        [op e a v]))))
+            [op e a v]))
 
+        ;; todo: check cache first
+        datoms2
+        (for [datom datoms1]
+          (let [[op e a v] datom]
+            [op (cswap e) a v]))]
 
-
+    (doall datoms2)))
 
 
 #_
@@ -290,6 +302,7 @@
 
         ;; process add/retract
         (doseq [[op e a v] datoms]
+
           (case op
 
             :db/retract
@@ -316,6 +329,8 @@
               (let [p* (get p-ea [e a])]
 
                 (if (am/multiple? am a)
+
+
 
                   (when (or (nil? p*)
                             (not (contains? (set (map :v p*)) v)))

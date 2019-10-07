@@ -61,9 +61,7 @@
 (defn pull*-idents
   [{:as scope :keys [table
                      en am]}
-
    & [eids av-pairs]]
-
   (let [qp (qp/params)
         add-param (partial qp/add-alias qp)
         ors* (transient [])]

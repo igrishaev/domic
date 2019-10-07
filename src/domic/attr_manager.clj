@@ -2,7 +2,7 @@
   (:require
    [domic.attributes :as at]
    [domic.util :refer [extend-print]]
-   [domic.error :refer [error!]]))
+   [domic.error :as e]))
 
 
 (defn- group-attrs
@@ -96,7 +96,9 @@
         a-key)))
 
   (get-type [this attr]
-    (get-in attr-map [attr :db/valueType]))
+    (or
+     (-get-field this attr :db/valueType)
+     (e/error! "Unknown attrubute %s" attr)))
 
   (db-type [this attr]
     (let [a-type (get-type this attr)]
