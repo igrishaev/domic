@@ -15,8 +15,7 @@
 
 
 ;; todo
-;; resolve lookups
-;; check refs, eids, etc
+
 ;; write log
 ;; check history attrib
 ;; process functions
@@ -194,42 +193,6 @@
     (doall datoms2)))
 
 
-#_
-(defn validate-tx-data
-  [{:as scope :keys [am]}
-   datoms]
-
-  ;; (println datoms)
-
-  (let [ids* (transient #{})]
-
-    (doseq [[_ e a v] datoms]
-
-      (when-not (am/known? am a)
-        (e/error! "Unknown attribute: %s" a))
-
-      (when (real-id? e)
-        (conj! ids* e))
-
-      (when (am/ref? am a)
-        (conj! ids* v)))
-
-    (if-let [ids (-> ids* persistent! not-empty)]
-
-      (let [pull (p2/pull* scope ids)
-            ids-found (->> pull (map :e) set)
-            ids-left (set/difference ids ids-found)
-            ids-count (count ids-left)]
-
-        (cond
-          (> ids-count 1)
-          (e/error! "Entities %s are not found"
-                    (util/join ids-left))
-          (= ids-count 1)
-          (e/error! "Entity %s is not found"
-                    (first ids-left)))))))
-
-
 (defn transact
   [{:as scope :keys [table
                      table-trx
@@ -251,39 +214,15 @@
         {:keys [datoms tx-fns]}
         (prepare-tx-data scope tx-data)
 
-        [ids avs] (collect-ident-info scope datoms)
-
-        pull (pull-idents scope ids avs)
-
-        _ (clojure.pprint/pprint datoms)
-        _ (println "---")
-        _ (clojure.pprint/pprint pull)
-
-        datoms (fix-datoms scope datoms pull)
-
-        _ (println "---")
-        _ (clojure.pprint/pprint datoms)
-
-        ;; _ (validate-tx-data scope datoms)
-
-        elist
-        (set (for [[_ e] datoms :when (real-id? e)] e))
-
-        alist
-        (set (for [[_ _ a] datoms] a))]
+        [ids avs] (collect-ident-info scope datoms)]
 
     (en/with-tx [en en]
 
-      ;; todo: duplicate query
-      (let [scope (assoc scope :en en)
-
-            p (when (and (not-empty elist)
-                         (not-empty alist))
-                (p2/pull* scope elist alist))
-
-            p-ea (group-by (juxt :e :a) p)
-
-            t (runtime/get-new-id scope)]
+      (let [pull   (pull-idents scope ids avs)
+            datoms (fix-datoms scope datoms pull)
+            scope  (assoc scope :en en)
+            p-ea   (group-by (juxt :e :a) pull)
+            t      (runtime/get-new-id scope)]
 
         ;; process tx functions
         (doseq [[func & args] tx-fns]
@@ -329,8 +268,6 @@
               (let [p* (get p-ea [e a])]
 
                 (if (am/multiple? am a)
-
-
 
                   (when (or (nil? p*)
                             (not (contains? (set (map :v p*)) v)))

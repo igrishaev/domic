@@ -652,3 +652,38 @@ org.postgresql.jdbc.PgArray
 [[:db/add [:user/email "test@test.com"] :user/api-key "USHDFOIJSDFIJSFS"]
  [:db/add [:user/email "test@test.com"] :user/age 15342323]
 ]
+
+
+(defn validate-tx-data
+  [{:as scope :keys [am]}
+   datoms]
+
+  ;; (println datoms)
+
+  (let [ids* (transient #{})]
+
+    (doseq [[_ e a v] datoms]
+
+      (when-not (am/known? am a)
+        (e/error! "Unknown attribute: %s" a))
+
+      (when (real-id? e)
+        (conj! ids* e))
+
+      (when (am/ref? am a)
+        (conj! ids* v)))
+
+    (if-let [ids (-> ids* persistent! not-empty)]
+
+      (let [pull (p2/pull* scope ids)
+            ids-found (->> pull (map :e) set)
+            ids-left (set/difference ids ids-found)
+            ids-count (count ids-left)]
+
+        (cond
+          (> ids-count 1)
+          (e/error! "Entities %s are not found"
+                    (util/join ids-left))
+          (= ids-count 1)
+          (e/error! "Entity %s is not found"
+                    (first ids-left)))))))
