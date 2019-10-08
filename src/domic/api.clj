@@ -1,6 +1,7 @@
 (ns domic.api
   (:require
    [domic.transact :as transact]
+   [domic.pull :as pull]
    [domic.engine :as en]
    [domic.init :as init]
    [domic.attr-manager :as am]))
@@ -31,11 +32,13 @@
 
 
 (defn pull
-  [scope pattern id])
+  [scope pattern id]
+  (pull/pull scope pattern id))
 
 
 (defn pull-many
-  [scope pattern ids])
+  [scope pattern ids]
+  (pull/pull-many scope pattern ids))
 
 
 (defn q

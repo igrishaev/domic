@@ -8,7 +8,7 @@
    [domic.error :as e]
    [domic.attr-manager :as am]
    [domic.engine :as en]
-   [domic.pull2 :as p2]
+   [domic.pull :as p]
 
    [honeysql.core :as sql])
   (:import
@@ -131,7 +131,7 @@
 (defn pull-idents
   [{:as scope :keys [am]}
    ids avs]
-  (p2/pull*-idents scope ids avs))
+  (p/-pull*-idents scope ids avs))
 
 
 (defn fix-datoms

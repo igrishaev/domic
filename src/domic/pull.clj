@@ -1,7 +1,5 @@
 (ns domic.pull
   (:require
-   [clojure.string :as str]
-
    [domic.attributes :as at]
    [domic.error :as e]
    [domic.query-builder :as qb]
@@ -14,6 +12,12 @@
 
   (:import java.sql.ResultSet))
 
+;; todo
+;; limits for backrefs
+;; attr aliases
+
+
+(def WC '*)
 
 (def conj-set (fnil conj #{}))
 
@@ -29,7 +33,16 @@
      :t (.getLong rs 5)}))
 
 
-(defn rs->maps
+(defn- rs->datoms
+  [scope]
+  (fn [^ResultSet rs]
+    (let [result* (transient [])]
+      (while (.next rs)
+        (conj! result* (rs->datom scope rs)))
+      (persistent! result*))))
+
+
+(defn- rs->maps
   [{:as scope :keys [am]}]
   (fn [^ResultSet rs]
     (vals
@@ -45,19 +58,7 @@
          result)))))
 
 
-(defn- rs->datoms
-  [scope]
-  (fn [^ResultSet rs]
-    (let [result* (transient [])]
-      (while (.next rs)
-        (conj! result* (rs->datom scope rs)))
-      (persistent! result*))))
-
-
-(def WC '*)
-
-
-(defn split-pattern
+(defn- split-pattern
   [pattern]
   (let [pattern (set pattern)
 
@@ -96,7 +97,7 @@
      :backrefs (persistent! backrefs*)}))
 
 
-(defn pull*
+(defn- pull*
   [{:as scope :keys [en]}
    ids & [attrs]]
 
@@ -122,7 +123,7 @@
       (en/query-rs en query (rs->maps scope)))))
 
 
-(defn pull*-refs
+(defn- pull*-refs
   [{:as scope :keys [en]}
    ids-ref attrs-ref & [attrs]]
 
@@ -157,7 +158,7 @@
     (en/query-rs en query (rs->maps scope))))
 
 
-(defn pull-join
+(defn- pull-join
   [{:as scope :keys [am]}
    p1 p2 attr]
 
@@ -165,8 +166,7 @@
   (println p1)
   (println p2)
 
-  (let [
-        p2* (group-by :db/id p2)
+  (let [p2* (group-by :db/id p2)
 
         updater (if (am/multiple? am attr)
                   (fn [refs]
@@ -175,14 +175,13 @@
                         (first (get p2* id)))))
                   (fn [ref]
                     (let [{:db/keys [id]} ref]
-                      (first (get p2* id)))))
-        ]
+                      (first (get p2* id)))))]
     (for [p p1]
       ;; todo check if got the result
       (update p attr updater))))
 
 
-(defn group-pull-backref
+(defn- group-pull-backref
   [p m? attr]
   (let [coll (if m?
                (let [tmp* (transient [])]
@@ -195,7 +194,7 @@
     (group-by (comp :db/id attr) coll)))
 
 
-(defn pull-join-backref
+(defn- pull-join-backref
   [{:as scope :keys [am]}
    p1 p2 _attr]
 
@@ -208,7 +207,7 @@
       (assoc p _attr (get grouped (:db/id p))))))
 
 
-(defn pull-connect
+(defn- pull-connect
   [{:as scope :keys [am]}
    p refs* backrefs*]
 
@@ -256,11 +255,59 @@
   (first (pull-many scope pattern [id])))
 
 
+(defn -pull*-idents
+  "
+  Special pull for transact module
+  "
+  [{:as scope :keys [table
+                     en am]}
+   & [eids av-pairs]]
+  (let [qp (qp/params)
+        add-param (partial qp/add-alias qp)
+        ors* (transient [])]
 
-;; TODOs
-;; limits for backrefs
-;; attr aliases
+    (when (seq eids)
+      (conj! ors* [:in :e (mapv add-param eids)]))
 
+    (doseq [[a v] av-pairs]
+
+      (let [db-type (am/db-type am a)]
+
+        (if (h/lookup? v)
+
+          (let [[a* v*] v
+                db-type* (am/db-type am a*)
+
+                sub
+                {:select [:e]
+                 :from [table]
+                 :where [:and
+                         [:= :a (add-param a*)]
+                         [:= (h/->cast :v db-type*)
+                          (add-param v*)]]
+                 :limit (sql/inline 1)}]
+
+            (conj! ors*
+                   [:and
+                    [:= :a (add-param a*)]
+                    [:= (h/->cast :v db-type*) (add-param v*)]])
+
+            (conj! ors*
+                   [:and
+                    [:= :a (add-param a)]
+                    [:= (h/->cast :v db-type) sub]]))
+
+          (conj! ors*
+                 [:and
+                  [:= :a (add-param a)]
+                  [:= (h/->cast :v db-type) (add-param v)]]))))
+
+    (when-let [ors (-> ors* persistent! not-empty)]
+      (let [sql (sql/build :select :*
+                           :from table
+                           :where (into [:or] ors))
+            query (sql/format sql @qp)]
+        (en/query-rs en query (rs->datoms scope))))))
 
 
 #_
