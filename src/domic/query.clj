@@ -2,20 +2,16 @@
 
   (:require [clojure.spec.alpha :as s]
 
-            [domic.pull :refer [pull-many]]
-
-            [domic.sql-helpers :refer
-             [->cast as-fields as-field lookup?]]
+            [domic.pull :as pull]
+            [domic.sql-helpers :as h]
             [domic.runtime :refer [resolve-lookup!]]
-            [domic.util :refer [sym-generator]]
-            [domic.error :refer
-             [error! error-case!]]
+            [domic.error :as e]
             [domic.db :as db]
             [domic.var-manager :as vm]
             [domic.query-builder :as qb]
             [domic.pp-manager :as pp]
             [domic.db-manager :as dm]
-            [domic.util :refer [zip]]
+            [domic.util :as u]
             [domic.db :as db]
             [domic.query-params :as qp]
             [domic.attr-manager :as am]
@@ -28,8 +24,16 @@
 
 
 ;; todo
+;; unify databases (rename to table/dataset)
 ;; process with
 ;; process maps
+;; cast datasets to params
+;; remove or/not-join clauses
+;; unify rules
+;; fix tuple binding
+;; deal with pull pattern
+;; detect idents
+
 
 
 (def rules
@@ -101,7 +105,7 @@
   [rules]
   (let [rules* (s/conform ::ds/rules rules)]
     (when (= rules* ::s/invalid)
-      (error! "Wrong rules: %s" rules*))
+      (e/error! "Wrong rules: %s" rules*))
     (into {} (for [rule* rules*]
                [(-> rule* :head :name) rule*]))))
 
@@ -171,7 +175,7 @@
           {:keys [elems]} expression
           alias-layer (sg "layer")
 
-          field-elem-pairs (zip fields elems)
+          field-elem-pairs (u/zip fields elems)
 
           attr (find-attr field-elem-pairs)
           pg-type (when attr
@@ -186,7 +190,7 @@
 
               alias-fq (sql/qualify alias-layer field)
               alias-fq (if (and v? attr)
-                         (->cast alias-fq pg-type)
+                         (h/->cast alias-fq pg-type)
                          alias-fq)]
 
           (case tag
@@ -208,7 +212,7 @@
             :blank nil
 
             ;; else
-            (error-case! elem*))))
+            (e/error-case! elem*))))
 
       (finish-layer scope
                     [alias alias-layer]
@@ -230,7 +234,7 @@
 
           where* (transient [])]
 
-      (doseq [[elem* field] (zip elems fields)]
+      (doseq [[elem* field] (u/zip elems fields)]
         (let [[tag elem] elem*
               alias-fq (sql/qualify alias-layer field)]
 
@@ -250,7 +254,7 @@
             :blank nil
 
             ;; else
-            (error-case! elem*))))
+            (e/error-case! elem*))))
 
       (finish-layer scope
                     [alias alias-layer]
@@ -267,7 +271,7 @@
           alias-fields (for [_ row] (sg "f"))]
       (db/table alias-coll alias-fields data))
     :else
-    (error! "Wrong database: %s" var)))
+    (e/error! "Wrong database: %s" var)))
 
 
 (defn- process-in
@@ -277,10 +281,10 @@
   (let [n-inputs (count inputs)
         n-params (count params)]
     (when-not (= n-inputs n-params)
-      (error! "Arity mismatch: %s input(s) and %s param(s)"
+      (e/error! "Arity mismatch: %s input(s) and %s param(s)"
               n-inputs n-params)))
 
-  (doseq [[input-src param] (zip inputs params)]
+  (doseq [[input-src param] (u/zip inputs params)]
     (let [[tag input] input-src]
       (case tag
 
@@ -302,13 +306,13 @@
             (let [[input] input
                   alias-coll (sg "data")
                   alias-fields (for [_ input] (sg "f"))
-                  alias-full (as-fields alias-coll alias-fields)
+                  alias-full (h/as-fields alias-coll alias-fields)
                   from [{:values param} alias-full]]
 
               (qb/add-from qb from)
 
               (doseq [[input alias-field]
-                      (zip input alias-fields)]
+                      (u/zip input alias-fields)]
                 (let [[tag input] input
                       alias-fq (sql/qualify alias-coll alias-field)]
                   (case tag
@@ -320,7 +324,7 @@
             (let [{:keys [var]} input
                   alias-coll (sg "coll")
                   alias-field (sg "field")
-                  alias-full (as-field alias-coll alias-field)
+                  alias-full (h/as-field alias-coll alias-field)
                   field (sql/qualify alias-coll alias-field)
                   values {:values (mapv vector param)}
                   from [values alias-full]]
@@ -332,9 +336,9 @@
             (do
               (when-not (= (count input)
                            (count param))
-                (error! "Arity mismatch: %s != %s" input param))
+                (e/error! "Arity mismatch: %s != %s" input param))
 
-              (doseq [[input param-el] (zip input param)]
+              (doseq [[input param-el] (u/zip input param)]
                 (let [[tag input] input]
                   (case tag
                     :var
@@ -342,7 +346,7 @@
                               :in input-src (type param-el))))))
 
             :bind-scalar
-            (let [value (if (lookup? param)
+            (let [value (if (h/lookup? param)
                           (resolve-lookup! scope param)
                           param)]
               (let [_a (sg (name input))
@@ -495,7 +499,7 @@
         rule (get RULES rule-name)
 
         _ (when-not rule
-            (error! "Cannot resolve a rule %s" rule-name))
+            (e/error! "Cannot resolve a rule %s" rule-name))
 
         {:keys [clauses head]} rule
         {:keys [vars]} head
@@ -506,13 +510,13 @@
         arity-src (count vars-src-pairs)
 
         _ (when-not (= arity-src arity-dst)
-            (error! "Arity error in rule %s" rule-name))
+            (e/error! "Arity error in rule %s" rule-name))
 
         vm-dst (:vm scope)
         vm-src (vm/manager)
 
         _ (doseq [[var-dst [var-src req?]]
-                  (zip vars-dst vars-src-pairs)]
+                  (u/zip vars-dst vars-src-pairs)]
 
             (if req?
 
@@ -733,7 +737,7 @@
       (let [val (vm/get-val vm find-elem)]
         (qb/add-select qb [val alias]))
 
-      (error! "No matching clause: %s" find-elem*))
+      (e/error! "No matching clause: %s" find-elem*))
 
     alias))
 
@@ -767,7 +771,7 @@
 
         ]
 
-    (doseq [[find-elem agg?] (zip find-elem-list aggs?)]
+    (doseq [[find-elem agg?] (u/zip find-elem-list aggs?)]
       (let [alias (add-find-elem scope find-elem)]
         (when (and group? (not agg?))
           (qb/add-group-by qb alias))))))
@@ -800,7 +804,7 @@
         ids (for [row result]
               (get row idx))
 
-        p (pull-many scope '[*] ids)
+        p (pull/pull-many scope '[*] ids)
         p* (group-by :db/id p)]
 
     (for [row result]
@@ -826,7 +830,7 @@
 
   (let [scope (assoc scope
                      :lvl 0
-                     :sg (sym-generator)
+                     :sg (u/sym-generator)
                      :vm (vm/manager)
                      :qb (qb/builder)
                      :dm (dm/manager)
@@ -865,7 +869,7 @@
   [query-list]
   (let [result (s/conform ::ds/query query-list)]
     (if (= result ::s/invalid)
-      (error! "Cannot parse query: %s" query-list)
+      (e/error! "Cannot parse query: %s" query-list)
       result)))
 
 
