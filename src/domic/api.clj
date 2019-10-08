@@ -8,6 +8,8 @@
    [domic.pull :as pull]
    [domic.query :as query]))
 
+;; todo
+;; rename table_seq
 
 (defn ->scope
   [db-spec attrs & [{:keys [table prefix]

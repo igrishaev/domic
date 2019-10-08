@@ -241,7 +241,7 @@
 
 (defn transact
   [{:as scope :keys [table
-                     table-trx
+                     table-log
                      table-seq
                      en am]}
    tx-data]
@@ -252,9 +252,13 @@
         t-inst (new Date)
         t-id   -1
 
+        to-log*    (transient [])
         to-insert* (transient [])
         to-delete* (transient [])
         to-update* (transient [])
+
+        add-log (fn [row]
+                  (conj! to-log* row))
 
         {:keys [datoms tx-fns]}
         (prepare-tx-data scope tx-data)
@@ -299,14 +303,23 @@
           (case op
 
             :db/retract
-            (if-let [p* (get p-ea [e a])]
-              (let [ids (for [{:keys [id] v* :v} p*
-                              :when (= v v*)]
-                          id)]
-                (doseq [id ids]
-                  (conj! to-delete* id)))
+            (if (h/real-id? e)
 
-              (e/error! "Entity %s not found!" e))
+              (do
+
+                (add-log {:e e
+                          :a (add-param a)
+                          :v (add-param v)
+                          :t t
+                          :op false})
+
+                (if-let [p* (get p-ea [e a])]
+                  (doseq [{:keys [id] v* :v} p*
+                          :when (= v v*)]
+                    (conj! to-delete* id))
+                  (e/error! "Entity %s not found!" e)))
+
+              (e/error! "Cannot retract entity %s" e))
 
             :db/add
             (cond
@@ -316,7 +329,8 @@
                          :a (add-param a)
                          :v (add-param v)
                          :t t}]
-                (conj! to-insert* row))
+                (conj! to-insert* row)
+                (add-log (assoc row :op true)))
 
               (h/real-id? e)
               (let [p* (get p-ea [e a])]
@@ -329,23 +343,34 @@
                                :a (add-param a)
                                :v (add-param v)
                                :t t}]
-                      (conj! to-insert* row)))
+                      (conj! to-insert* row)
+                      (add-log (assoc row :op true))))
 
                   (if p*
                     (let [[{:keys [id]}] p*]
                       (conj! to-update* {:id id
                                          :v (add-param v)
-                                         :t t}))
+                                         :t t})
+                      (add-log {:e e
+                                :a (add-param a)
+                                :v (add-param v)
+                                :t t
+                                :op true}))
                     (let [row {:e e
                                :a (add-param a)
                                :v (add-param v)
                                :t t}]
-                      (conj! to-insert* row)))))
+                      (conj! to-insert* row)
+                      (add-log (assoc row :op true))))))
 
               :else
               (e/error! "Wrong entity type: %s" e))))
 
-        (let [to-insert (-> to-insert*
+        (let [to-log (-> to-log*
+                         persistent!
+                         not-empty)
+
+              to-insert (-> to-insert*
                             persistent!
                             not-empty)
 
@@ -389,6 +414,13 @@
             (en/execute-map
              en {:delete-from table
                  :where [:in :id to-delete]}
+             @qp))
+
+          ;; log
+          (when to-log
+            (en/execute-map
+             en {:insert-into table-log
+                 :values to-log}
              @qp)))
 
         nil))))

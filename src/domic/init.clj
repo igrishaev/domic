@@ -1,8 +1,12 @@
 (ns domic.init
+  (:refer-clojure :exclude [< >])
   (:require
+   [domic.util :as u]
    [domic.engine :as en]
    [domic.attr-manager :as am]
-   [domic.util :refer [kw->str]]))
+   [domic.util :refer [kw->str]]
+
+   [honeysql.core :as sql]))
 
 ;; todo
 ;; fix transaction macros
@@ -10,57 +14,54 @@
 (defn init-seq
   [{:as scope :keys [table-seq
                      en]}]
-  (let [sql (format "CREATE SEQUENCE IF NOT EXISTS %s"
-                    (name table-seq))]
-    (en/execute en sql)))
+  (let [sql (sql/raw ["CREATE SEQUENCE IF NOT EXISTS " table-seq])]
+    (en/execute en (sql/format sql))))
 
 
-(defn sql-index-av
-  [table attr db-type]
-  (let [table-name (kw->str table)
-        type-name (kw->str db-type)
-        attr-name
-        (let [ans (namespace attr)
-              aname (name attr)]
-          (format "%s_%s" ans aname))
-        index-name (format "idx_%s_AV_%s" table-name attr-name)]
-    (format "CREATE INDEX IF NOT EXISTS %s ON %s (CAST(v AS %s)) WHERE a = '%s'"
-            index-name table-name type-name attr-name)))
-
+(def CREATE-IDX "CREATE INDEX IF NOT EXISTS idx_")
+(def ON " ON ")
+(def < " (")
+(def > ")")
+(def SPACE " ")
+(def Q "'")
 
 (defn init-indexes
   [{:as scope :keys [en am
                      table]}]
 
   ;; E
-  (let [index-name (format "idx_%s_E" (name table))
-        index-sql (format "CREATE INDEX IF NOT EXISTS %s ON %s (e)"
-                          index-name (name table))]
-    (en/execute en index-sql))
+  (let [sql (sql/raw [CREATE-IDX table :_E ON table < :e >])]
+    (en/execute en (sql/format sql)))
 
   ;; T
-  (let [index-name (format "idx_%s_T" (name table))
-        index-sql (format "CREATE INDEX IF NOT EXISTS %s ON %s (t)"
-                          index-name (name table))]
-    (en/execute en index-sql))
+  (let [sql (sql/raw [CREATE-IDX table :_T ON table < :t >])]
+    (en/execute en (sql/format sql)))
+
+  ;; EA
+  (let [sql (sql/raw [CREATE-IDX table :_EA ON table < "e,a" >])]
+    (en/execute en (sql/format sql)))
 
   ;; Attributes: indexed, refs, unique
   (doseq [attr @am]
-
-    ;; EV
-    (let [index-name (format "idx_%s_EA" (name table))
-          index-sql (format "CREATE INDEX IF NOT EXISTS %s ON %s (e,a)"
-                            index-name (name table))]
-      (en/execute en index-sql))
 
     ;; AV
     (when (or (am/index?  am attr)
               (am/ref?    am attr)
               (am/unique? am attr))
 
-      (let [db-type (am/db-type am attr)
-            sql-index (sql-index-av table attr db-type)]
-        (jdbc/execute! en sql-index)))))
+      (let [db-type (am/db-type am attr)]
+
+        (let [sql (sql/raw [CREATE-IDX
+                            table :_EA_ (namespace attr) '_ (name attr)
+                            ON table
+                            <
+                            (if (= db-type :text)
+                              :v
+                              (sql/call :cast :v db-type))
+                            >
+                            SPACE
+                            {:where [:= :a (sql/raw [Q (u/kw->str attr) Q])]}])]
+          (en/execute en (sql/format sql)))))))
 
 
 (def ddl-table

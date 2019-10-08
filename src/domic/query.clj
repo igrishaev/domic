@@ -1,26 +1,28 @@
 (ns domic.query
 
-  (:require [clojure.spec.alpha :as s]
+  (:require
+   [clojure.spec.alpha :as s]
 
-            [domic.pull :as pull]
-            [domic.sql-helpers :as h]
-            [domic.runtime :refer [resolve-lookup!]]
-            [domic.error :as e]
-            [domic.db :as db]
-            [domic.var-manager :as vm]
-            [domic.query-builder :as qb]
-            [domic.pp-manager :as pp]
-            [domic.db-manager :as dm]
-            [domic.util :as u]
-            [domic.db :as db]
-            [domic.query-params :as qp]
-            [domic.attr-manager :as am]
-            [domic.engine :as en]
-            [domic.spec-datomic :as ds]
+   [domic.pull :as pull]
+   [domic.sql-helpers :as h]
+   [domic.runtime :refer [resolve-lookup!]]
+   [domic.error :as e]
+   [domic.db :as db]
+   [domic.var-manager :as vm]
+   [domic.query-builder :as qb]
+   [domic.pp-manager :as pp]
+   [domic.db-manager :as dm]
+   [domic.util :as u]
+   [domic.db :as db]
+   [domic.query-params :as qp]
+   [domic.attr-manager :as am]
+   [domic.engine :as en]
+   [domic.spec-datomic :as ds]
 
-            [honeysql.core :as sql])
+   [honeysql.core :as sql])
 
-  (:import [domic.db DBPG DBTable]))
+  (:import
+   [domic.db DBPG DBTable]))
 
 
 ;; todo
