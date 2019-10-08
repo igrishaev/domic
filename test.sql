@@ -831,3 +831,207 @@ e, a, array_agg(v)
 from foo
 group by e, a
 ;
+
+
+
+
+with
+sub1 as (
+    select * from datoms4
+    where a = 'artist/name' and v = 'Queen'
+),
+sub2 as (
+    select * from datoms4
+    where a = 'release/artist' and v::integer in (select e from sub1)
+
+),
+sub3 as (
+    select * from datoms4
+    where a = 'release/year' and e in (select e from sub2)
+
+)
+
+select distinct
+    sub1.e, sub3.v
+
+from sub1, sub3
+;
+
+
+
+
+
+
+
+
+
+explain analyze
+with
+
+sub1 as (
+    select e from datoms4
+    where a = 'artist/name'
+),
+sub2 as (
+    select e from datoms4
+    where a = 'release/artist' and v::integer in (select e from sub1)
+
+),
+sub3 as (
+    select v from datoms4
+    where a = 'release/year' and e in (select e from sub2)
+
+)
+
+select distinct
+    sub1.e, sub3.v
+
+from sub1, sub3
+;
+
+
+
+
+
+
+
+explain analyze
+
+with
+sub1 as (
+    select distinct
+    d.e from datoms4 d
+    where a = 'artist/name'
+),
+sub2 as (
+    select distinct
+    d.e from datoms4 d
+    where a = 'release/artist' and v::integer in (select e from sub1)
+
+),
+sub3 as (
+    select distinct
+    d.v from datoms4 d
+    where a = 'release/year' and e in (select e from sub2)
+
+)
+select distinct sub1.e, sub3.v
+from sub1, sub3
+;
+
+
+
+
+explain analyze
+with
+sub1 as (
+    select distinct
+    d.e, d.v from datoms4 d
+    where a = 'release/year'
+),
+sub2 as (
+    select distinct
+    d.v from datoms4 d, sub1
+    where a = 'release/artist' and
+    d.e = sub1.e
+),
+sub3 as (
+    select distinct
+    d.v from datoms4 d, sub2
+    where a = 'artist/name' and
+    d.e = sub2.v::integer
+)
+select distinct sub1.v, sub3.v
+from sub1, sub3
+;
+
+
+
+explain analyze
+with
+sub1 as (
+    select distinct
+    d.e, d.v from datoms4 d
+    where a = 'release/year'
+),
+sub2 as (
+    select distinct
+    d.v from datoms4 d
+    where a = 'release/artist' and
+    d.e in (select e from sub1)
+),
+sub3 as (
+    select distinct
+    d.v from datoms4 d, sub2
+    where a = 'artist/name' and
+    d.e in (select v::integer from sub2)
+)
+select distinct sub1.v, sub3.v
+from sub1, sub3
+;
+
+
+
+
+
+
+explain analyze
+
+with
+
+sub1 as (
+    select distinct
+    d.e, d.a, d.v from datoms4 d
+    where d.a = 'artist/name'
+),
+sub2 as (
+    select distinct
+    d.e, d.a, d.v from datoms4 d, sub1
+    where d.a = 'release/artist' and d.v::integer = sub1.e
+
+),
+sub3 as (
+    select distinct
+    d.e, d.a, d.v from datoms4 d, sub2
+    where d.a = 'release/year' and d.e = sub2.e
+)
+select distinct
+    sub1.v, sub3.v::integer
+
+from sub1, sub2, sub3
+
+where
+
+    sub2.v::integer = sub1.e
+and sub3.e = sub2.e
+
+;
+
+-- from sub1, sub2, sub3
+-- where
+--     sub1.a = 'artist/name'
+-- and sub2.a = 'release/artist'
+-- and sub2.v::integer = sub1.e
+-- and sub3.a = 'release/year'
+-- and sub3.e = sub2.e
+
+
+;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-------

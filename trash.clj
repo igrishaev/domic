@@ -753,3 +753,96 @@ org.postgresql.jdbc.PgArray
       (vm/consume vm-dst vm-src)
 
       (join-or result))))
+
+
+
+SELECT DISTINCT
+
+                "layer1"."e" AS "f1",
+CAST("layer3"."v" AS bigint) AS "f2"
+
+FROM "datoms4" "layer1"
+
+INNER JOIN "datoms4" "layer2" ON ("layer2"."a" = 'release/artist' AND CAST("layer2"."v" AS bigint) = "layer1"."e")
+INNER JOIN "datoms4" "layer3" ON ("layer3"."e" = "layer2"."e" AND "layer3"."a" = 'release/year')
+
+WHERE (("layer1"."a" = 'artist/name' AND "layer1"."v" = 'Queen'))
+;
+
+
+explain analyze
+SELECT DISTINCT
+                 "layer1"."e" AS "f1",
+CAST("layer3"."v" AS integer) AS "f2"
+
+FROM
+"datoms4" "layer1",
+"datoms4" "layer2",
+"datoms4" "layer3"
+
+WHERE
+
+"layer1"."a" = 'artist/name' AND "layer1"."v" = 'Queen'
+and
+"layer2"."a" = 'release/artist' AND CAST("layer2"."v" AS integer) = "layer1"."e"
+and
+"layer3"."e" = "layer2"."e" AND "layer3"."a" = 'release/year'
+;
+
+
+
+
+
+SELECT DISTINCT
+                 "layer1"."e" AS "f1",
+CAST("layer3"."v" AS integer) AS "f2"
+
+FROM
+"datoms4" "layer1",
+"datoms4" "layer2",
+"datoms4" "layer3"
+
+
+WHERE
+
+"layer1"."a" = 'artist/name' AND "layer1"."v" = 'Queen'
+and
+"layer2"."a" = 'release/artist' AND CAST("layer2"."v" AS integer) = "layer1"."e"
+and
+"layer3"."e" = "layer2"."e" AND "layer3"."a" = 'release/year'
+;
+
+
+ 1978
+ 1971
+ 1982
+ 1983
+ 1994
+ 1980
+ 1981
+ 1988
+ 1986
+ 1972
+ 1996
+ 1987
+ 1992
+ 1976
+ 1993
+ 1974
+ 1985
+ 1997
+ 1990
+ 2000
+ 1973
+ 1991
+ 2999
+ 1979
+ 1989
+ 1998
+ 1984
+ 1995
+ 1975
+ 1999
+ 1977
+ 333
+ 1970
