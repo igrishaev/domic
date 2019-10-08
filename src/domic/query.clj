@@ -26,16 +26,14 @@
 
 
 ;; todo
+;; unify rules
 ;; unify databases (rename to table/dataset)
 ;; process with
 ;; process maps
 ;; cast datasets to params
-;; remove or/not-join clauses
-;; unify rules
 ;; fix tuple binding
 ;; deal with pull pattern
 ;; detect idents
-
 
 
 (def rules
@@ -54,18 +52,6 @@
    #_
    [(foobar ?len ?max)
     [?t :track/artists ?a]]])
-
-
-(def d1
-  [["a1" "b1" "c1"]
-   ["a2" "b2" "c2"]
-   ["a3" "b3" "c3"]])
-
-
-(def d2
-  [["a1" "b1"  "d1"]
-   ["a2" "b2*" "d2"]
-   ["a4" "b4"  "c4"]])
 
 
 (def query
@@ -394,14 +380,9 @@
     (case pred-tag
       :sym
       pred-expr
-      #_
-      (qb/add-where qb pred-expr))))
+      ;; else
+      (e/error-case! pred-tag))))
 
-
-#_
-{:expr {:fn [:sym =],
-        :args [[:cst [:num 2]] [:cst [:num 2]]]},
- :binding [:bind-scalar ?foo]}
 
 (defn- add-function
   [{:as scope :keys [qb vm sg qp]}
@@ -437,32 +418,6 @@
   nil)
 
 
-#_
-{:rule-name short-track,
- :vars [[:var ?a2] [:var ?t2] [:var ?len2] [:var2 ?max]]}
-
-#_
-{short-track
- {:head
-  {:name short-track, :vars [:vars* {:in [?a ?t], :out [?len ?max]}]},
-  :clauses
-  [[:expression-clause
-    [:data-pattern
-     {:elems [[:var ?t] [:cst [:kw :track/artists]] [:var ?a]]}]]
-   [:expression-clause
-    [:data-pattern
-     {:elems [[:var ?t] [:cst [:kw :track/duration]] [:var ?len]]}]]
-   [:expression-clause
-    [:pred-expr
-     {:expr {:pred [:sym <], :args [[:var ?len] [:var ?max]]}}]]]},
- foobar
- {:head {:name foobar, :vars [:vars [?len ?max]]},
-  :clauses
-  [[:expression-clause
-    [:data-pattern
-     {:elems [[:var ?t] [:cst [:kw :track/artists]] [:var ?a]]}]]]}}
-
-
 (defn split-rule-vars
   [rule-vars]
   (let [var-map (apply hash-map rule-vars)
@@ -477,10 +432,11 @@
        [var false]))))
 
 
-;; write a comment here
+;; define that func in advance
 (declare process-clauses)
 
 
+;; TODO drop it
 (def RULES
   #_
   (group-rules rules))
@@ -535,9 +491,6 @@
 
     (vm/consume vm-dst vm-src)
 
-    (println @vm-dst)
-    (println @vm-src)
-
     (join-and result)))
 
 
@@ -558,7 +511,8 @@
       :data-pattern
       (add-pattern scope expression)
 
-      )))
+      ;; else
+      (e/error-case! clause))))
 
 
 (defmacro with-lvl-up
@@ -583,17 +537,6 @@
           (process-clauses scope clauses))]))))
 
 
-(defn- process-not-join-clause
-  [scope clause]
-  (vm/with-read-only
-    (with-lvl-up scope
-      (let [{:keys [vars clauses]} clause]
-        (with-vm-subset scope vars
-          [:not
-           (join-and
-            (process-clauses scope clauses))])))))
-
-
 (defn- process-or-clause
   [scope clause]
   (with-lvl-up scope
@@ -614,50 +557,6 @@
                   (process-clauses scope clauses)))))))))))
 
 
-(defn- process-or-join-clause
-  [scope clause]
-
-  (with-lvl-up scope
-    (let [{:keys [rule-vars clauses]} clause
-
-          vars-src-pairs (split-rule-vars rule-vars)
-
-          vm-dst (:vm scope)
-          vm-src (vm/manager)
-
-          _ (doseq [[var req?] vars-src-pairs]
-
-              (if req?
-
-                (let [val (vm/get-val vm-dst var)]
-                  (vm/bind vm-src var val))
-
-                (when (vm/bound? vm-dst var)
-                  (let [val (vm/get-val vm-dst var)]
-                    (vm/bind vm-src var val)))))
-
-          scope (assoc scope :vm vm-src)
-
-          result (doall
-                  (for [clause clauses]
-                    (let [[tag clause] clause]
-                      (case tag
-
-                        :clause
-                        (join-and
-                         (process-clauses scope [clause]))
-
-                        :and-clause
-                        (with-lvl-up scope
-                          (let [{:keys [clauses]} clause]
-                            (join-and
-                             (process-clauses scope clauses))))))))]
-
-      (vm/consume vm-dst vm-src)
-
-      (join-or result))))
-
-
 (defn- process-clauses
   [{:as scope :keys [qb]}
    clauses]
@@ -674,13 +573,13 @@
          (process-or-clause scope clause)
 
          :or-join-clause
-         (process-or-join-clause scope clause)
+         (e/error! "or-join is not implemented")
 
          :not-clause
          (process-not-clause scope clause)
 
          :not-join-clause
-         (process-not-join-clause scope clause)
+         (e/error! "not-join is not implemented")
 
          :expression-clause
          (add-clause scope clause))))))
@@ -699,7 +598,6 @@
     (= tag :agg)))
 
 
-;; {:op pull, :var ?r, :pattern [[:wildcard *]]}
 (defn- add-pull-expression
   [{:as scope :keys [qb vm pp]}
    expression]
@@ -721,7 +619,6 @@
 
     (case tag
 
-      ;; {:op pull, :var ?r, :pattern [[:wildcard *]]}
       :pull-expr
       (add-pull-expression scope find-elem)
 
@@ -759,7 +656,7 @@
         find-elem-list
         (case tag
 
-          ;; :tuple
+          ;; :tuple TODO
           ;; https://github.com/alexanderkiel/datomic-spec/issues/6
 
           (:coll :scalar)
@@ -769,9 +666,7 @@
           :rel find-spec)
 
         aggs? (map find-elem-agg? find-elem-list)
-        group? (some identity aggs?)
-
-        ]
+        group? (some identity aggs?)]
 
     (doseq [[find-elem agg?] (u/zip find-elem-list aggs?)]
       (let [alias (add-find-elem scope find-elem)]

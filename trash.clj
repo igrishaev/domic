@@ -698,3 +698,58 @@ org.postgresql.jdbc.PgArray
                [op (cswap e) a v]))
 
             datoms*))
+
+
+(defn- process-not-join-clause
+  [scope clause]
+  (vm/with-read-only
+    (with-lvl-up scope
+      (let [{:keys [vars clauses]} clause]
+        (with-vm-subset scope vars
+          [:not
+           (join-and
+            (process-clauses scope clauses))])))))
+
+
+(defn- process-or-join-clause
+  [scope clause]
+
+  (with-lvl-up scope
+    (let [{:keys [rule-vars clauses]} clause
+
+          vars-src-pairs (split-rule-vars rule-vars)
+
+          vm-dst (:vm scope)
+          vm-src (vm/manager)
+
+          _ (doseq [[var req?] vars-src-pairs]
+
+              (if req?
+
+                (let [val (vm/get-val vm-dst var)]
+                  (vm/bind vm-src var val))
+
+                (when (vm/bound? vm-dst var)
+                  (let [val (vm/get-val vm-dst var)]
+                    (vm/bind vm-src var val)))))
+
+          scope (assoc scope :vm vm-src)
+
+          result (doall
+                  (for [clause clauses]
+                    (let [[tag clause] clause]
+                      (case tag
+
+                        :clause
+                        (join-and
+                         (process-clauses scope [clause]))
+
+                        :and-clause
+                        (with-lvl-up scope
+                          (let [{:keys [clauses]} clause]
+                            (join-and
+                             (process-clauses scope clauses))))))))]
+
+      (vm/consume vm-dst vm-src)
+
+      (join-or result))))

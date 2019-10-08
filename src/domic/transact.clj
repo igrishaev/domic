@@ -16,8 +16,6 @@
 
 
 ;; todo
-
-;; write log
 ;; check history attrib
 ;; process functions
 

@@ -10,11 +10,13 @@
 
    [honeysql.core :as sql])
 
-  (:import java.sql.ResultSet))
+  (:import
+   java.sql.ResultSet))
 
 ;; todo
 ;; limits for backrefs
 ;; attr aliases
+;; try weird attrs
 
 
 (def WC '*)
