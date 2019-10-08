@@ -28,16 +28,55 @@
 ;; :db.type/tuple   - Value type for a tuple of scalar values.
 ;; :db.type/bytes   - Value type for small binary data. Maps to byte array on Java platforms. See limitations.
 
+;; :db/valueType
+;; :db/cardinality
+;; :db/doc
+;; :db/unique
+;; :db.attr/preds
+;; :db/index
+;; :db/fulltext
+;; :db/isComponent
+;; :db/noHistory
+
 
 (def defaults
 
-  [{:db/ident       :db/ident
+  [{:db/ident       :db/valueType
     :db/valueType   :db.type/keyword
-    :db/unique      :db.unique/value
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :db/cardinality
+    :db/valueType   :db.type/keyword
     :db/cardinality :db.cardinality/one}
 
    {:db/ident       :db/doc
     :db/valueType   :db.type/string
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :db/unique
+    :db/valueType   :db.type/keyword
+    :db/unique      :db.unique/value
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :db/index
+    :db/valueType   :db.type/boolean
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :db/fulltext
+    :db/valueType   :db.type/boolean
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :db/isComponent
+    :db/valueType   :db.type/boolean
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :db/noHistory
+    :db/valueType   :db.type/boolean
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :db/ident
+    :db/valueType   :db.type/keyword
+    :db/unique      :db.unique/identity
     :db/cardinality :db.cardinality/one}
 
    {:db/ident       :db/txInstant
