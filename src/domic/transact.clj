@@ -22,13 +22,6 @@
 ;; process functions
 
 
-(defn- temp-id [] (str (gensym "e")))
-
-(def temp-id? string?)
-
-(def real-id? int?)
-
-
 (defn fetch-db-ids
   [{:as scope :keys [table-seq
                      en]}
@@ -47,9 +40,9 @@
    datoms]
   (let [temp-ids* (transient #{})]
     (doseq [[_ e a v] datoms]
-      (when (temp-id? e)
+      (when (h/temp-id? e)
         (conj! temp-ids* e))
-      (when (and (am/ref? am a) (temp-id? v))
+      (when (and (am/ref? am a) (h/temp-id? v))
         (conj! temp-ids* v)))
     (-> temp-ids* persistent! not-empty)))
 
@@ -74,7 +67,7 @@
 
         (map? tx-node)
         (let [e (or (:db/id tx-node)
-                    (temp-id))]
+                    (h/temp-id))]
 
           (doseq [[a v] (dissoc tx-node :db/id)]
             (if (am/multiple? am a)
@@ -104,22 +97,33 @@
 
     (doseq [[_ e a v] datoms]
 
-      (when (real-id? e)
-        (conj! ids* e))
+      ;; E
+      (cond
+        (h/real-id? e)
+        (conj! ids* e)
 
-      (when (h/lookup? e)
-        (conj! avs* e))
+        (h/lookup? e)
+        (conj! avs* e)
 
-      (when (am/unique? am a)
-        (conj! avs* [a v]))
+        (h/ident-id? e)
+        (conj! avs* [:db/ident e]))
 
+      ;; V (refs)
       (when (am/ref? am a)
 
-        (when (real-id? v)
-          (conj! ids* v))
+        (cond
+          (h/real-id? v)
+          (conj! ids* v)
 
-        (when (h/lookup? v)
-          (conj! avs* v))))
+          (h/lookup? v)
+          (conj! avs* v)
+
+          (h/ident-id? v)
+          (conj! avs* [:db/ident v])))
+
+      ;; A (unique)
+      (when (am/unique? am a)
+        (conj! avs* [a v])))
 
     [(persistent! ids*) (persistent! avs*)]))
 
@@ -152,7 +156,15 @@
               (e/error! "Cannot find lookup %s" av)))
 
         -cache (atom {})
-        cset! (fn [k v] (swap! -cache assoc k v))
+        cset! (fn [k v]
+                (swap! -cache
+                       (fn [*cache]
+                         (when-let [v* (get *cache k)]
+                           (when (not= v* v)
+                             (e/error!
+                              "Attempt to redefine temp-id %s from %s to %s"
+                              k v* v)))
+                         (assoc *cache k v))))
         cswap (fn [k] (get @-cache k k))
 
         datoms* (transient [])
@@ -163,11 +175,14 @@
 
                 ;; resolve E
                 e (cond
-                    (real-id? e)
+                    (h/real-id? e)
                     (get-e! e)
 
                     (h/lookup? e)
                     (get-av! e)
+
+                    (h/ident-id? e)
+                    (get-av! [:db/ident e])
 
                     :else e)
 
@@ -176,11 +191,14 @@
 
                     (am/ref? am a)
                     (cond
-                      (real-id? v)
+                      (h/real-id? v)
                       (get-e! v)
 
                       (h/lookup? v)
                       (get-av! v)
+
+                      (h/ident-id? v)
+                      (get-av! [:db/ident v])
 
                       :else v)
                     :else v)]
@@ -190,17 +208,17 @@
             ;; unique/ident
             (when (am/unique-identity? am a)
               (when-let [e* (get-av [a v])]
-                (when (temp-id? e)
+                (when (h/temp-id? e)
                   (cset! e e*))
-                (when (and (real-id? e) (not= e e*))
+                (when (and (h/real-id? e) (not= e e*))
                   (e/error! "Ident conflict: AV [%s %s] => %s, but E is %s"
                             a v e* e))))
 
             ;; unique value
             (when (am/unique-value? am a)
               (when-let [e* (get-av [a v])]
-                (when (or (temp-id? e)
-                          (and (real-id? e)
+                (when (or (h/temp-id? e)
+                          (and (h/real-id? e)
                                (not= e e*)))
                   (e/error! (str "Value conflict: entity with AV [%s %s] "
                                  "already exists (%s)")
@@ -293,14 +311,14 @@
             :db/add
             (cond
 
-              (temp-id? e)
+              (h/temp-id? e)
               (let [row {:e (->db-id e)
                          :a (add-param a)
                          :v (add-param v)
                          :t t}]
                 (conj! to-insert* row))
 
-              (real-id? e)
+              (h/real-id? e)
               (let [p* (get p-ea [e a])]
 
                 (if (am/multiple? am a)
@@ -350,7 +368,6 @@
 
           ;; insert
           (when to-insert
-            (println to-insert)
             (en/execute-map
              en {:insert-into table
                  :columns [:e :a :v :t]

@@ -87,6 +87,6 @@
        :db/valueType   :db.type/string
        :db/cardinality :db.cardinality/many}]
 
-     {:prefix "__test4_"}
+     {:prefix "__test_"}
 
      )))

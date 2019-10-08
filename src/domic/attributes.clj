@@ -32,7 +32,8 @@
 (def defaults
 
   [{:db/ident       :db/ident
-    :db/valueType   :db.type/string
+    :db/valueType   :db.type/keyword
+    :db/unique      :db.unique/value
     :db/cardinality :db.cardinality/one}
 
    {:db/ident       :db/doc

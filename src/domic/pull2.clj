@@ -73,7 +73,7 @@
 
       (let [db-type (am/db-type am a)]
 
-        (if (vector? v)
+        (if (h/lookup? v)
 
           (let [[a* v*] v
                 db-type* (am/db-type am a*)

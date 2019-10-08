@@ -13,6 +13,16 @@
     (sql/call :cast field (sql/inline type))))
 
 
+(defn temp-id []
+  (str (gensym "id")))
+
+(def temp-id? string?)
+
+(def real-id? int?)
+
+(def ident-id? keyword?)
+
+
 (defn lookup?
   [node]
   (and (vector? node)
