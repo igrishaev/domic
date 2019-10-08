@@ -2,20 +2,17 @@
   (:require
    [domic.engine :as en]
    [domic.attr-manager :as am]
-   [domic.util :refer [kw->str]]
-
-   [clojure.java.jdbc :as jdbc]))
+   [domic.util :refer [kw->str]]))
 
 ;; todo
 ;; fix transaction macros
-;; get rid of bare jdbc
 
 (defn init-seq
   [{:as scope :keys [table-seq
                      en]}]
   (let [sql (format "CREATE SEQUENCE IF NOT EXISTS %s"
                     (name table-seq))]
-    (jdbc/execute! @en sql)))
+    (en/execute en sql)))
 
 
 (defn sql-index-av
@@ -39,13 +36,13 @@
   (let [index-name (format "idx_%s_E" (name table))
         index-sql (format "CREATE INDEX IF NOT EXISTS %s ON %s (e)"
                           index-name (name table))]
-    (jdbc/execute! @en index-sql))
+    (en/execute en index-sql))
 
   ;; T
   (let [index-name (format "idx_%s_T" (name table))
         index-sql (format "CREATE INDEX IF NOT EXISTS %s ON %s (t)"
                           index-name (name table))]
-    (jdbc/execute! @en index-sql))
+    (en/execute en index-sql))
 
   ;; Attributes: indexed, refs, unique
   (doseq [attr @am]
@@ -54,7 +51,7 @@
     (let [index-name (format "idx_%s_EA" (name table))
           index-sql (format "CREATE INDEX IF NOT EXISTS %s ON %s (e,a)"
                             index-name (name table))]
-      (jdbc/execute! @en index-sql))
+      (en/execute en index-sql))
 
     ;; AV
     (when (or (am/index?  am attr)
@@ -63,7 +60,7 @@
 
       (let [db-type (am/db-type am attr)
             sql-index (sql-index-av table attr db-type)]
-        (jdbc/execute! @en sql-index)))))
+        (jdbc/execute! en sql-index)))))
 
 
 (def ddl-table
@@ -84,12 +81,12 @@
                      table-log]}]
 
   (let [opt {:conditional? true}
-        tables
+        queries
         [(jdbc/create-table-ddl table ddl-table opt)
          (jdbc/create-table-ddl table-log ddl-table-log opt)]]
 
-    (doseq [table tables]
-      (jdbc/execute! @en table))))
+    (doseq [query queries]
+      (en/execute en query))))
 
 
 (defn init

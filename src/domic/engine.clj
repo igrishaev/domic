@@ -2,7 +2,6 @@
   (:refer-clojure :exclude [update])
   (:require
    [domic.util :refer [kw->str]]
-   [domic.util :refer [extend-print]]
 
    [clojure.java.jdbc :as jdbc]
    [honeysql.core :as sql])
@@ -45,10 +44,6 @@
 (defrecord Engine
     [db-spec]
 
-  clojure.lang.IDeref
-
-  (deref [this] db-spec)
-
   IEngine
 
   (query-rs [this query rs-fn]
@@ -90,6 +85,3 @@
 
   (sql-value [val]
     (kw->str val)))
-
-
-(extend-print Engine)
