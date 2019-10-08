@@ -1,4 +1,4 @@
-(ns domic.query2
+(ns domic.query
 
   (:require [clojure.spec.alpha :as s]
 
@@ -25,6 +25,11 @@
             [honeysql.core :as sql])
 
   (:import [domic.db DBPG DBTable]))
+
+
+;; todo
+;; process with
+;; process maps
 
 
 (def rules
@@ -92,7 +97,7 @@
    ])
 
 
-(defn group-rules
+(defn- group-rules
   [rules]
   (let [rules* (s/conform ::ds/rules rules)]
     (when (= rules* ::s/invalid)
@@ -170,7 +175,7 @@
 
           attr (find-attr field-elem-pairs)
           pg-type (when attr
-                    (am/get-pg-type am attr))
+                    (am/db-type am attr))
 
           where* (transient [])]
 
@@ -614,12 +619,6 @@
           vm-dst (:vm scope)
           vm-src (vm/manager)
 
-
-          _ (pprint "-------")
-          _ (pprint @vm-dst)
-          _ (pprint @vm-src)
-          _ (pprint "-------")
-
           _ (doseq [[var req?] vars-src-pairs]
 
               (if req?
@@ -646,19 +645,9 @@
                         (with-lvl-up scope
                           (let [{:keys [clauses]} clause]
                             (join-and
-                             (process-clauses scope clauses))))))))
-
-          ]
+                             (process-clauses scope clauses))))))))]
 
       (vm/consume vm-dst vm-src)
-
-      _ (pprint "-------")
-      _ (pprint @vm-dst)
-      _ (pprint @vm-src)
-      _ (pprint "-------")
-
-      ;; (pprint @vm-dst)
-      ;; (pprint @vm-src)
 
       (join-or result))))
 
@@ -862,9 +851,6 @@
     (process-where scope clauses)
     (process-find scope spec)
 
-    ;; todo process with
-    ;; todo process maps
-
     (qb/set-distinct qb)
 
     (qb/debug qb @qp)
@@ -888,40 +874,3 @@
          scope
          (parse-query query-list)
          args))
-
-#_
-(do
-  (q _scope query (db/pg) [:db/ident :metallica]))
-
-#_
-(do
-
-  (def _attrs
-    [{:db/ident       :artist/name
-      :db/valueType   :db.type/string
-      :db/cardinality :db.cardinality/one}
-
-     {:db/ident       :release/artist
-      :db/valueType   :db.type/ref
-      :db/cardinality :db.cardinality/many
-      :db/isComponent true}
-
-     {:db/ident       :release/year
-      :db/valueType   :db.type/integer
-      :db/cardinality :db.cardinality/one}
-
-     {:db/ident       :release/tag
-      :db/valueType   :db.type/string
-      :db/cardinality :db.cardinality/many}])
-
-  (def _db
-    {:dbtype "postgresql"
-     :dbname "test"
-     :host "127.0.0.1"
-     :user "ivan"
-     :password "ivan"
-     :assumeMinServerVersion "10"})
-
-  (def _scope
-    {:am (am/manager _attrs)
-     :en (en/engine _db)}))

@@ -1,10 +1,12 @@
 (ns domic.api
   (:require
+   [domic.engine :as en]
+   [domic.attr-manager :as am]
+
+   [domic.init :as init]
    [domic.transact :as transact]
    [domic.pull :as pull]
-   [domic.engine :as en]
-   [domic.init :as init]
-   [domic.attr-manager :as am]))
+   [domic.query :as query]))
 
 
 (defn ->scope
@@ -42,7 +44,8 @@
 
 
 (defn q
-  [])
+  [scope query-vect & args]
+  (apply query/q scope query-vect args))
 
 
 (defn entity

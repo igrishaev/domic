@@ -26,7 +26,7 @@
   [{:as scope :keys [am]}
    ^ResultSet rs]
   (let [attr (keyword (.getString rs 3))
-        attr-type (am/db-type am attr)]
+        attr-type (am/get-type am attr)]
     {:e (.getLong rs 2)
      :a attr
      :v (at/rs->clj attr-type rs 4)
@@ -98,62 +98,62 @@
 
 
 (defn- pull*
-  [{:as scope :keys [en]}
+  [{:as scope :keys [en table]}
    ids & [attrs]]
 
   (when (seq ids)
 
-    (let [params* (transient {})
-          params*add (h/adder params*)
+    (let [qp (qp/params)
+          add-param (partial qp/add-alias qp)
 
-          ids*   (mapv params*add ids)
-          attrs* (mapv params*add attrs)
+          ids*   (mapv add-param ids)
+          attrs* (mapv add-param attrs)
 
           sql (sql/build
                :select :*
-               :from :datoms4
+               :from table
                :where [:and
                        [:in :e ids*]
                        (when (seq attrs)
                          [:in :a attrs*])])
 
-          params (persistent! params*)
-          query (sql/format sql params)]
+          query (sql/format sql @qp)]
 
       (en/query-rs en query (rs->maps scope)))))
 
 
 (defn- pull*-refs
-  [{:as scope :keys [en]}
+  [{:as scope :keys [en am table]}
    ids-ref attrs-ref & [attrs]]
 
   (println "backrefs" ids-ref attrs-ref attrs)
 
-  (let [params*    (transient {})
-        params*add (adder params*)
+  (let [qp (qp/params)
+        add-param (partial qp/add-alias qp)
 
-        ids-ref*   (mapv params*add ids-ref)
-        attrs-ref* (mapv params*add attrs-ref)
-        attrs*     (mapv params*add attrs)
+        ids-ref*   (mapv add-param ids-ref)
+        attrs-ref* (mapv add-param attrs-ref)
+        attrs*     (mapv add-param attrs)
 
-        v-cast (sql/call :cast :v :integer)
+        db-type (am/db-type am :db.type/ref)
+        v-cast (h/->cast :v db-type)
 
         sub (sql/build
              :select :e
-             :from :datoms4
+             :from table
              :where [:and
                      [:in v-cast ids-ref*]
                      [:in :a attrs-ref*]])
 
         sql (sql/build
-             :select :* :from :datoms4
+             :select :*
+             :from table
              :where [:and
                      [:in :e sub]
                      (when (seq attrs)
                        [:in :a attrs*])])
 
-        params (persistent! params*)
-        query (sql/format sql params)]
+        query (sql/format sql @qp)]
 
     (en/query-rs en query (rs->maps scope))))
 
@@ -161,10 +161,6 @@
 (defn- pull-join
   [{:as scope :keys [am]}
    p1 p2 attr]
-
-  (println attr)
-  (println p1)
-  (println p2)
 
   (let [p2* (group-by :db/id p2)
 
