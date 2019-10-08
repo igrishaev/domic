@@ -3,6 +3,9 @@
   (:require
    [domic.error :refer [error!]]))
 
+;; todo
+;; extend print
+
 
 (def ^:dynamic *read-only* nil)
 

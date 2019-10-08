@@ -1,5 +1,6 @@
 (ns domic.pp-manager)
 
+;; todo: extend print
 
 (defprotocol IPPManager
 

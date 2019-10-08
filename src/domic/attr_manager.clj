@@ -6,6 +6,8 @@
    [domic.util :as u]
    [domic.error :as e]))
 
+;; todo
+;; extend print
 
 (defn- group-attrs
   [attr-list]

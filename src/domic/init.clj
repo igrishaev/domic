@@ -8,6 +8,7 @@
 
 ;; todo
 ;; fix transaction macros
+;; get rid of bare jdbc
 
 (defn init-seq
   [{:as scope :keys [table-seq
