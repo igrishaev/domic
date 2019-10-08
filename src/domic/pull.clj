@@ -1,18 +1,14 @@
 (ns domic.pull
   (:require
    [clojure.string :as str]
-   [clojure.spec.alpha :as s]
 
-   [domic.runtime :refer [resolve-lookup!]]
-   [domic.util :refer
-    [kw->str drop-nils sym-generator]]
-   [domic.error :refer [error!]]
+   [domic.attributes :as at]
+   [domic.error :as e]
    [domic.query-builder :as qb]
    [domic.query-params :as qp]
    [domic.attr-manager :as am]
    [domic.engine :as en]
-   [domic.sql-helpers :refer
-    [->cast lookup? adder]]
+   [domic.sql-helpers :as h]
 
    [honeysql.core :as sql])
 
@@ -26,10 +22,10 @@
   [{:as scope :keys [am]}
    ^ResultSet rs]
   (let [attr (keyword (.getString rs 3))
-        attr-type (am/get-db-type am attr)]
+        attr-type (am/db-type am attr)]
     {:e (.getLong rs 2)
      :a attr
-     :v (am/rs->clj attr-type rs 4)
+     :v (at/rs->clj attr-type rs 4)
      :t (.getLong rs 5)}))
 
 
@@ -61,11 +57,6 @@
 (def WC '*)
 
 
-(defn backref?
-  [attr]
-  (some-> attr name (str/starts-with? "_")))
-
-
 (defn split-pattern
   [pattern]
   (let [pattern (set pattern)
@@ -82,14 +73,14 @@
       (cond
 
         (keyword? pattern)
-        (if (backref? pattern)
+        (if (at/attr-backref? pattern)
           (assoc! backrefs* pattern [WC])
           (conj! attrs* pattern))
 
 
         (map? pattern)
         (doseq [[attr pattern] pattern]
-          (if (backref? attr)
+          (if (at/attr-backref? attr)
             (assoc! backrefs* attr pattern)
             (assoc! refs* attr pattern)))
 
@@ -97,7 +88,7 @@
         (= pattern (str WC)) nil
 
         :else
-        (error! "Wrong pattern: %s" pattern)))
+        (e/error! "Wrong pattern: %s" pattern)))
 
     {:wc? wc?
      :attrs (persistent! attrs*)
@@ -112,7 +103,7 @@
   (when (seq ids)
 
     (let [params* (transient {})
-          params*add (adder params*)
+          params*add (h/adder params*)
 
           ids*   (mapv params*add ids)
           attrs* (mapv params*add attrs)
@@ -208,7 +199,7 @@
   [{:as scope :keys [am]}
    p1 p2 _attr]
 
-  (let [attr (am/backref->ref _attr)
+  (let [attr (at/attr-backref->ref _attr)
         regr* (transient {})
         m? (am/multiple? am attr)
         grouped (group-pull-backref p2 m? attr)]
@@ -224,7 +215,7 @@
   (reduce
    (fn [p [_attr pattern]]
 
-     (let [attr (am/backref->ref _attr)
+     (let [attr (at/attr-backref->ref _attr)
            ids (map :db/id p)
 
            {:keys [wc? attrs refs backrefs]}

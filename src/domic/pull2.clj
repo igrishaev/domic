@@ -1,6 +1,5 @@
 (ns domic.pull2
   (:require
-   [domic.error :refer [error!]]
    [domic.attributes :as at]
    [domic.query-params :as qp]
    [domic.attr-manager :as am]
@@ -31,31 +30,6 @@
       (while (.next rs)
         (conj! result* (rs->datom scope rs)))
       (persistent! result*))))
-
-
-(defn pull*
-  [{:as scope :keys [en table]}
-   ids & [attrs]]
-
-  (when-not (seq ids)
-    (error! "Empty ids in pull!"))
-
-  (let [qp (qp/params)
-        add-param (partial qp/add-alias qp)
-
-        ids*   (mapv add-param ids)
-        attrs* (mapv add-param attrs)
-
-        sql (sql/build
-             :select :*
-             :from table
-             :where [:and
-                     [:in :e ids*]
-                     (when attrs [:in :a attrs*])])
-
-        query (sql/format sql @qp)]
-
-    (en/query-rs en query (rs->datoms scope))))
 
 
 (defn pull*-idents
