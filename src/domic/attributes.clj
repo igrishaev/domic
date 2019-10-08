@@ -43,6 +43,7 @@
 
   [{:db/ident       :db/valueType
     :db/valueType   :db.type/keyword
+    :db/index       true
     :db/cardinality :db.cardinality/one}
 
    {:db/ident       :db/cardinality
