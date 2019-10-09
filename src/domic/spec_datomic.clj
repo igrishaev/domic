@@ -114,48 +114,48 @@
 ;; (s/def ::tx-data
 ;;   (s/coll-of ::tx-stmt))
 
-;; ;; ---- Pull Pattern ----------------------------------------------------------
+;; ---- Pull Pattern ----------------------------------------------------------
 
-;; (s/def ::pattern
-;;   (s/spec (s/+ ::attr-spec)))
+(s/def ::pattern
+  (s/spec (s/+ ::attr-spec)))
 
-;; (s/def ::attr-spec
-;;   (s/or :attr ::attr-name
-;;         :wildcard ::wildcard
-;;         :map-spec ::map-spec
-;;         :attr-expr ::attr-expr))
+(s/def ::attr-spec
+  (s/or :attr ::attr-name
+        :wildcard ::wildcard
+        :map-spec ::map-spec
+        :attr-expr ::attr-expr))
 
-;; (s/def ::attr-name
-;;   keyword?)
+(s/def ::attr-name
+  keyword?)
 
-;; (s/def ::wildcard
-;;   #{"*" '*})
+(s/def ::wildcard
+  #{"*" '*})
 
-;; (s/def ::map-spec
-;;   (s/map-of (s/or :attr ::attr-name
-;;                   :limit-expr ::limit-expr)
-;;             (s/or :pattern ::pattern
-;;                   :recursion-limit ::recursion-limit)
-;;             :min-count 1))
+(s/def ::map-spec
+  (s/map-of (s/or :attr ::attr-name
+                  :limit-expr ::limit-expr)
+            (s/or :pattern ::pattern
+                  :recursion-limit ::recursion-limit)
+            :min-count 1))
 
-;; (s/def ::attr-expr
-;;   (s/or :limit-expr ::limit-expr
-;;         :default-expr ::default-expr))
+(s/def ::attr-expr
+  (s/or :limit-expr ::limit-expr
+        :default-expr ::default-expr))
 
-;; (s/def ::limit-expr
-;;   (s/cat :key #{"limit" 'limit}
-;;          :attr ::attr-name
-;;          :limit (s/alt :pos-int pos-int?
-;;                        :nil nil?)))
+(s/def ::limit-expr
+  (s/cat :key #{"limit" 'limit}
+         :attr ::attr-name
+         :limit (s/alt :pos-int pos-int?
+                       :nil nil?)))
 
-;; (s/def ::default-expr
-;;   (s/cat :key #{"default" 'default}
-;;          :attr ::attr-name
-;;          :val any?))
+(s/def ::default-expr
+  (s/cat :key #{"default" 'default}
+         :attr ::attr-name
+         :val any?))
 
 
-;; (s/def ::recursion-limit
-;;   (s/or :pos-int pos-int? :ellipsis #{'...}))
+(s/def ::recursion-limit
+  (s/or :pos-int pos-int? :ellipsis #{'...}))
 
 ;; ;; ---- Entity Identifier -----------------------------------------------------
 
