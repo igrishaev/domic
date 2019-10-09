@@ -98,16 +98,6 @@
                [(-> rule* :head :name) rule*]))))
 
 
-
-(def ^:dynamic *nested?* false)
-
-
-(defmacro with-nested
-  [& body]
-  `(binding [*nested?* true]
-     ~@body))
-
-
 (defn- join-op
   [op clauses]
 
@@ -540,71 +530,6 @@
     (join-and result)))
 
 
-(defn- add-clause
-  [scope clause]
-  (let [[tag expression] clause]
-    (case tag
-
-      :rule-expr
-      (add-rule scope expression)
-
-      :fn-expr
-      (add-function scope expression)
-
-      :pred-expr
-      (add-predicate scope expression)
-
-      :data-pattern
-      (add-pattern scope expression)
-
-      ;; else
-      (e/error-case! clause))))
-
-
-(defmacro with-lvl-up
-  [scope & body]
-  `(let [~scope (update ~scope :lvl inc)]
-     ~@body))
-
-
-(defmacro with-vm-subset
-  [scope vars & body]
-  `(let [~scope (update ~scope :vm vm/subset ~vars)]
-     ~@body))
-
-
-(defn- process-not-clause
-  [scope clause]
-  (with-nested
-    (vm/with-read-only
-      (with-lvl-up scope
-        (let [{:keys [clauses]} clause]
-          [:not
-           (join-and
-            (process-clauses scope clauses))])))))
-
-
-(defn- process-or-clause
-  [scope clause]
-  (with-nested
-    (with-lvl-up scope
-      (let [{:keys [clauses]} clause]
-        (join-or
-         (for [clause clauses]
-           (let [[tag clause] clause]
-             (case tag
-
-               :clause
-               (join-and
-                (process-clauses scope [clause]))
-
-               :and-clause
-               (with-lvl-up scope
-                 (let [{:keys [clauses]} clause]
-                   (join-and
-                    (process-clauses scope clauses))))))))))))
-
-
 (defn process-bool-expr
   [scope
    expression]
@@ -635,8 +560,6 @@
 
         :bool-expr
         (let [where (process-bool-expr scope expression)]
-          (println "----" where)
-
           (qb/add-where qb where))
 
         ;; :rule-expr
