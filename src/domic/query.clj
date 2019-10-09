@@ -108,19 +108,18 @@
      ~@body))
 
 
-(defn- join-*
+(defn- join-op
   [op clauses]
 
   (case op
-    'not
-    [:not (join-* :and clauses)]
-
+    (not :not)
+    [:not (join-op :and clauses)]
     ;; else
     (when-let [clauses* (not-empty (filter some? clauses))]
       (into [op] clauses*))))
 
-(def join-and (partial join-* :and))
-(def join-or  (partial join-* :or))
+(def join-and (partial join-op :and))
+(def join-or  (partial join-op :or))
 
 
 (defprotocol IDBActions
@@ -610,21 +609,15 @@
   [scope
    expression]
 
-  (let [{:keys [op clauses]} expression
+  (let [{:keys [op clauses]} expression]
+    (join-op op (doall (for [[tag expression] clauses]
+                        (case tag
 
+                          :pred-expr
+                          (add-predicate scope expression)
 
-        ]
-
-
-
-    (join-* op (doall (for [[tag expression] clauses]
-                  (case tag
-
-                    :pred-expr
-                    (add-predicate scope expression)
-
-                    :bool-expr
-                    (process-bool-expr scope expression)))))))
+                          :bool-expr
+                          (process-bool-expr scope expression)))))))
 
 
 (defn- process-clauses
