@@ -158,10 +158,12 @@
 
   (add-pattern-db [db scope expression]
 
-    (let [{:keys [qb sg vm qp am lvl]} scope
+    (let [{:keys [qb sg vm qp am lvl table]} scope
           {:keys [alias fields]} db
           {:keys [elems]} expression
-          alias-layer (sg "layer")
+
+          alias-sub (sg "sub")
+          alias-table :d
 
           field-elem-pairs (u/zip fields elems)
 
@@ -169,14 +171,25 @@
           pg-type (when attr
                     (am/db-type am attr))
 
-          where* (transient [])]
+          qb-sub (qb/builder)]
+
+      (qb/set-distinct qb-sub)
+
+      (doseq [f fields]
+        (qb/add-select qb-sub (sql/qualify alias-table f)))
+      (qb/add-from qb-sub [table alias-table])
 
       (doseq [[field elem*] field-elem-pairs]
 
         (let [[tag elem] elem*
               v? (= field :v)
 
-              alias-fq (sql/qualify alias-layer field)
+              alias-sub-field (sql/inline (sql/qualify alias-sub field))
+              alias-sub-field (if (and v? attr)
+                                (h/->cast alias-sub-field pg-type)
+                                alias-sub-field)
+
+              alias-fq (sql/qualify alias-table field)
               alias-fq (if (and v? attr)
                          (h/->cast alias-fq pg-type)
                          alias-fq)]
@@ -189,22 +202,30 @@
                     param (sql/param alias-v)
                     where [:= alias-fq param]]
                 (qp/add-param qp alias-v v)
-                (conj! where* where)))
+                (qb/add-where qb-sub where)))
 
             :var
             (if (vm/bound? vm elem)
-              (let [where [:= alias-fq (vm/get-val vm elem)]]
-                (conj! where* where))
-              (vm/bind vm elem alias-fq))
+
+              (let [val (vm/get-val vm elem)]
+                (qb/add-where qb-sub [:= alias-fq val])
+
+                (when-let [src (-> val meta :src)]
+                  (qb/add-from? qb-sub src)
+                  (qb/add-where qb [:= alias-sub-field val])
+                  (qb/add-from? qb alias-sub)))
+
+              (vm/bind vm elem
+                       (-> alias-sub-field
+                           (with-meta {:src alias-sub}))))
 
             :blank nil
 
             ;; else
             (e/error-case! elem*))))
 
-      (finish-layer scope
-                    [alias alias-layer]
-                    (persistent! where*))))
+      (qb/add-with qb [alias-sub (qb/->map qb-sub)])
+      (qb/add-from? qb alias-sub)))
 
   DBTable
 
@@ -589,6 +610,7 @@
   [{:as scope :keys [qb]}
    clauses]
   (let [where (join-and (process-clauses scope clauses))]
+    #_
     (qb/add-where qb where)))
 
 

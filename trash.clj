@@ -846,3 +846,34 @@ and
  1977
  333
  1970
+
+
+
+
+
+
+
+(q _scope '[:find ?a ?name ?y
+                       :in $
+                       :where
+                       [$ ?a :artist/name ?name]
+                       [$ ?r :release/artist ?a]
+                       [$ ?r :release/year ?y]
+                       ]
+              (domic.db/pg)
+
+              )
+
+
+
+(q _scope '[:find ?r ?y ?name
+                       :in $
+                       :where
+                       [$ ?r :release/artist ?a]
+                       [$ ?r :release/year ?y]
+                       [$ ?a :artist/name ?name]
+
+                       ]
+              (domic.db/pg)
+
+              )

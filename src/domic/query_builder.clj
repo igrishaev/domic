@@ -30,6 +30,10 @@
 
   (add-from [this clause])
 
+  (has-from? [this from])
+
+  (add-from? [this clause])
+
   (add-where [this clause])
 
   (->map [this])
@@ -86,6 +90,14 @@
   (add-from [this clause]
     (swap! sql h/merge-from clause))
 
+  (has-from? [this from]
+    (let [froms (set (:from @sql))]
+      (contains? froms from)))
+
+  (add-from? [this clause]
+    (when-not (has-from? this clause)
+      (add-from this clause)))
+
   (->map [this] @sql)
 
   (format [this]
@@ -95,7 +107,8 @@
     (sql/format (->map this)
                 :params params
                 :allow-namespaced-names? true
-                :quoting :ansi)))
+                ;; :quoting :ansi
+                )))
 
 
 (defn builder

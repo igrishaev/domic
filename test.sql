@@ -1023,6 +1023,160 @@ and sub3.e = sub2.e
 
 
 
+WITH "sub1" AS (
+    SELECT * FROM "__test_datoms"
+    WHERE ("sub1"."a" = 'artist/name' AND "sub1"."v" = 'Queen'))
+
+SELECT DISTINCT
+"sub1"."e" AS "f1"
+FROM "sub1"
+;
+
+
+
+WITH "sub1" AS (
+    SELECT * FROM "__test_datoms" "d1"
+    WHERE ("d1"."a" = 'artist/name' AND "d1"."v" = 'Queen')
+
+)
+SELECT DISTINCT
+
+"sub1"."e" AS "f1"
+
+FROM "sub1"
+;
+
+
+
+
+
+
+
+WITH
+"sub1" AS (
+    SELECT * FROM "__test_datoms" "d1"
+    WHERE ("d1"."a" = ? AND "d1"."v" = ?)
+),
+"sub2" AS (
+    SELECT * FROM "__test_datoms" "d2"
+    WHERE "d2"."a" = ?
+) SELECT DISTINCT
+"sub1"."e" AS "f1"
+
+FROM "sub1", "sub2"
+
+
+
+
+
+
+
+
+WITH
+sub1 AS (
+    SELECT d1.* FROM __test_datoms d1 WHERE (d1.a = 'artist/name' AND d1.v = 'Queen')
+),
+sub2 AS (
+    SELECT d2.* FROM __test_datoms d2, sub1 WHERE (d2.a = 'release/artist' AND CAST(d2.v AS bigint) = sub1.e)
+)
+SELECT DISTINCT
+* from sub2
+;
+
+
+
+
+WITH sub1 AS (SELECT d1.* FROM __test_datoms d1 WHERE (d1.a = 'artist/name' AND d1.v = 'Queen')), sub2 AS (SELECT d2.* FROM __test_datoms d2, sub1 WHERE (d2.a = ? AND CAST(d2.v AS bigint) = sub1.e)), sub3 AS (SELECT d3.* FROM __test_datoms d3, sub2 WHERE (d3.e = sub2.e AND d3.a = ?)) SELECT DISTINCT sub1.e AS f1, CAST(sub3.v AS bigint) AS f2 FROM sub1, sub2, sub3 WHERE (CAST(sub2.v AS bigint) = sub1.e AND sub3.e = sub2.e)
+
+:artist/name Queen :release/artist :release/year
+
+
+
+
+
+explain analyze
+WITH sub1 AS
+  (SELECT DISTINCT d.e,
+                   d.a,
+                   d.v
+   FROM datoms4 d
+   WHERE d.a = 'artist/name' ),
+     sub2 AS
+  (SELECT DISTINCT d.e,
+                   d.a,
+                   d.v
+   FROM datoms4 d,
+        sub1
+   WHERE (d.a = 'release/artist'
+          AND CAST(d.v AS bigint) = sub1.e) ),
+     sub3 AS
+  (SELECT DISTINCT d.e,
+                   d.a,
+                   d.v
+   FROM datoms4 d,
+        sub2
+   WHERE (d.e = sub2.e
+          AND d.a = 'release/year') )
+SELECT DISTINCT sub1.e AS f1,
+                sub1.v AS f2,
+                CAST(sub3.v AS bigint) AS f3
+FROM sub1,
+     sub2,
+     sub3
+WHERE (CAST(sub2.v AS bigint) = sub1.e
+       AND sub3.e = sub2.e)
+;
+
+
+
+
+
+
+explain analyze
+WITH sub1 AS
+  (SELECT DISTINCT d.e,
+                   d.a,
+                   d.v
+   FROM datoms4 d
+   WHERE d.a = 'release/artist' ),
+     sub2 AS
+  (SELECT DISTINCT d.e,
+                   d.a,
+                   d.v
+   FROM datoms4 d,
+        sub1
+   WHERE (d.e = sub1.e
+          AND d.a = 'release/year') ),
+     sub3 AS
+  (SELECT DISTINCT d.e,
+                   d.a,
+                   d.v
+   FROM datoms4 d,
+        sub1
+   WHERE (d.e = CAST(sub1.v AS bigint)
+          AND d.a = 'artist/name') )
+SELECT DISTINCT sub1.e AS f1,
+                CAST(sub2.v AS bigint) AS f2,
+                sub3.v AS f3
+FROM sub1,
+     sub2,
+     sub3
+WHERE (sub2.e = sub1.e
+       AND sub3.e = CAST(sub1.v AS bigint))
+;
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
