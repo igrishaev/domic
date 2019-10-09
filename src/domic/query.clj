@@ -98,6 +98,16 @@
                [(-> rule* :head :name) rule*]))))
 
 
+
+(def ^:dynamic *nested?* false)
+
+
+(defmacro with-nested
+  [& body]
+  `(binding [*nested?* true]
+     ~@body))
+
+
 (defn- join-*
   [op clauses]
   (when-let [clauses* (not-empty (filter some? clauses))]
@@ -126,6 +136,7 @@
             elem))))))
 
 
+;; todo
 (defn- finish-layer
   [{:as scope :keys [qb lvl]}
    table where]
@@ -161,6 +172,8 @@
     (let [{:keys [qb sg vm qp am lvl table]} scope
           {:keys [alias fields]} db
           {:keys [elems]} expression
+
+          wheres* (transient [])
 
           alias-sub (sg "sub")
           alias-table :d
@@ -212,7 +225,11 @@
 
                 (when-let [src (-> val meta :src)]
                   (qb/add-from? qb-sub src)
-                  (qb/add-where qb [:= alias-sub-field val])
+
+                  (if *nested?*
+                    (conj! wheres* [:= alias-sub-field val])
+                    (qb/add-where qb [:= alias-sub-field val]))
+
                   (qb/add-from? qb alias-sub)))
 
               (vm/bind vm elem
@@ -225,7 +242,10 @@
             (e/error-case! elem*))))
 
       (qb/add-with qb [alias-sub (qb/->map qb-sub)])
-      (qb/add-from? qb alias-sub)))
+      (qb/add-from? qb alias-sub)
+
+      (when *nested?*
+        (join-and (persistent! wheres*)))))
 
   DBTable
 
@@ -550,32 +570,34 @@
 
 (defn- process-not-clause
   [scope clause]
-  (vm/with-read-only
-    (with-lvl-up scope
-      (let [{:keys [clauses]} clause]
-        [:not
-         (join-and
-          (process-clauses scope clauses))]))))
+  (with-nested
+    (vm/with-read-only
+      (with-lvl-up scope
+        (let [{:keys [clauses]} clause]
+          [:not
+           (join-and
+            (process-clauses scope clauses))])))))
 
 
 (defn- process-or-clause
   [scope clause]
-  (with-lvl-up scope
-    (let [{:keys [clauses]} clause]
-      (join-or
-       (for [clause clauses]
-         (let [[tag clause] clause]
-           (case tag
+  (with-nested
+    (with-lvl-up scope
+      (let [{:keys [clauses]} clause]
+        (join-or
+         (for [clause clauses]
+           (let [[tag clause] clause]
+             (case tag
 
-             :clause
-             (join-and
-              (process-clauses scope [clause]))
+               :clause
+               (join-and
+                (process-clauses scope [clause]))
 
-             :and-clause
-             (with-lvl-up scope
-               (let [{:keys [clauses]} clause]
-                 (join-and
-                  (process-clauses scope clauses)))))))))))
+               :and-clause
+               (with-lvl-up scope
+                 (let [{:keys [clauses]} clause]
+                   (join-and
+                    (process-clauses scope clauses))))))))))))
 
 
 (defn- process-clauses
@@ -609,8 +631,7 @@
 (defn- process-where
   [{:as scope :keys [qb]}
    clauses]
-  (let [where (join-and (process-clauses scope clauses))]
-    #_
+  (when-let [where (join-and (process-clauses scope clauses))]
     (qb/add-where qb where)))
 
 
