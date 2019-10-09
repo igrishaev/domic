@@ -6,6 +6,7 @@
    [domic.attr-manager :as am]
    [domic.util :refer [kw->str]]
 
+   [clojure.java.jdbc :as jdbc]
    [honeysql.core :as sql]))
 
 ;; todo

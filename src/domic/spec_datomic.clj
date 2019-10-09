@@ -3,17 +3,7 @@
    [clojure.spec.alpha :as s]
    [clojure.string :as str]))
 
-#_
-(ns datomic-spec.core
-  (:require
-   [clojure.spec.alpha :as s]
-   [clojure.spec.gen.alpha :as gen]
-   [clojure.string :as str]
-   [datomic.api :as d])
-  (:import
-   [datomic Connection Database Datom Entity Log]
-   [datomic.db Datum DbId]
-   [java.net URI URISyntaxException]))
+
 
 ;; ---- Common --------------------------------------------------------------
 
@@ -266,15 +256,6 @@
 (s/def ::pattern-var
   ::plain-symbol)
 
-(s/def ::and-clause
-  (s/cat :op #{'and} :clauses (s/+ ::clause)))
-
-(s/def ::expression-clause
-  (s/or :data-pattern ::data-pattern
-        :pred-expr ::pred-expr
-        :fn-expr ::fn-expr
-        :rule-expr ::rule-expr))
-
 (s/def ::rule-expr
   (s/cat :src-var (s/? ::src-var)
          :rule-name ::rule-name
@@ -282,49 +263,22 @@
                            :cst ::constant
                            :unused #{'_}))))
 
-(s/def ::not-clause
+(s/def ::bool-expr
   (s/cat :src-var (s/? ::src-var)
-         :op #{'not}
-         :clauses (s/+ ::clause)))
-
-(s/def ::not-join-clause
-  (s/cat :src-var (s/? ::src-var)
-         :op #{'not-join}
-         :vars (s/spec (s/+ ::variable))
-         :clauses (s/+ ::clause)))
-
-#_
-(s/def ::or-clause
-  (s/cat :src-var (s/? ::src-var)
-         :op #{'or}
-         :clauses (s/+ (s/alt :clause ::clause :and-clause ::and-clause))))
-
-(s/def ::or-clause
-  (s/cat :src-var (s/? ::src-var)
-         :op #{'or}
-         :clauses (s/+ (s/or :clause ::clause :and-clause ::and-clause))))
-
-(s/def ::or-join-clause
-  (s/cat :src-var (s/? ::src-var)
-         :op #{'or-join}
-         :rule-vars ::rule-vars
-         :clauses (s/+ (s/alt :clause ::clause :and-clause ::and-clause))))
-
-#_
-(s/def ::rule-vars
-  (s/alt :vars (s/+ ::variable)
-         :vars* (s/cat :in (s/spec (s/+ ::variable)) :out (s/* ::variable))))
+         :op #{'not 'or 'and}
+         :clauses (s/+ (s/or :pred-expr ::pred-expr
+                             :bool-expr ::bool-expr))))
 
 (s/def ::rule-vars
   (s/or :vars (s/+ ::variable)
         :vars* (s/cat :in (s/spec (s/+ ::variable)) :out (s/* ::variable))))
 
 (s/def ::clause
-  (s/or :not-clause ::not-clause
-        :not-join-clause ::not-join-clause
-        :or-clause ::or-clause
-        :or-join-clause ::or-join-clause
-        :expression-clause ::expression-clause))
+  (s/or :bool-expr    ::bool-expr
+        :data-pattern ::data-pattern
+        :pred-expr    ::pred-expr
+        :fn-expr      ::fn-expr
+        :rule-expr    ::rule-expr))
 
 (s/def ::data-pattern
   (s/spec (s/cat :src-var (s/? ::src-var)

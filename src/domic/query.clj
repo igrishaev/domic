@@ -110,8 +110,14 @@
 
 (defn- join-*
   [op clauses]
-  (when-let [clauses* (not-empty (filter some? clauses))]
-    (into [op] clauses*)))
+
+  (case op
+    'not
+    [:not (join-* :and clauses)]
+
+    ;; else
+    (when-let [clauses* (not-empty (filter some? clauses))]
+      (into [op] clauses*))))
 
 (def join-and (partial join-* :and))
 (def join-or  (partial join-* :or))
@@ -600,39 +606,64 @@
                     (process-clauses scope clauses))))))))))))
 
 
+(defn process-bool-expr
+  [scope
+   expression]
+
+  (let [{:keys [op clauses]} expression
+
+
+        ]
+
+
+
+    (join-* op (doall (for [[tag expression] clauses]
+                  (case tag
+
+                    :pred-expr
+                    (add-predicate scope expression)
+
+                    :bool-expr
+                    (process-bool-expr scope expression)))))))
+
+
 (defn- process-clauses
   [{:as scope :keys [qb]}
    clauses]
 
-  (doall
+  (doseq [clause clauses]
 
-   (for [clause clauses]
+    (let [[tag expression] clause]
 
-     (let [[tag clause] clause]
+      (case tag
 
-       (case tag
+        :data-pattern
+        (add-pattern scope expression)
 
-         :or-clause
-         (process-or-clause scope clause)
+        :bool-expr
+        (let [where (process-bool-expr scope expression)]
+          (println "----" where)
 
-         :or-join-clause
-         (e/error! "or-join is not implemented")
+          (qb/add-where qb where))
 
-         :not-clause
-         (process-not-clause scope clause)
+        ;; :rule-expr
+        ;; (add-rule scope expression)
 
-         :not-join-clause
-         (e/error! "not-join is not implemented")
+        :fn-expr
+        (add-function scope expression)
 
-         :expression-clause
-         (add-clause scope clause))))))
+        :pred-expr
+        (let [where (add-predicate scope expression)]
+          (qb/add-where qb where))
+
+        ;; else
+        (e/error-case! clause)))))
 
 
 (defn- process-where
   [{:as scope :keys [qb]}
    clauses]
-  (when-let [where (join-and (process-clauses scope clauses))]
-    (qb/add-where qb where)))
+  (process-clauses scope clauses))
 
 
 (defn- find-elem-agg?
