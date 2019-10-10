@@ -24,7 +24,7 @@
   IQueryParams
 
   (add-alias [this value]
-    (let [alias (gensym "param")
+    (let [alias (gensym "$")
           param (sql/param alias)]
       (add-param this alias value)
       param))

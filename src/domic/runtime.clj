@@ -47,12 +47,14 @@
       (error! "Lookup failed: %s" lookup)))
 
 
-(defn get-new-id
-  [{:as scope :keys [en
-                     table-seq]}]
-
-  (let [call (sql/call :nextval (name table-seq))
-        sql {:select [[call :e]]}]
-
-    (-> (en/query en (sql/format sql))
-        first :e)))
+(defn allocate-db-ids
+  [{:as scope :keys [table-seq
+                     en]}
+   temp-ids]
+  (when (seq temp-ids)
+    (let [qb (qb/builder)
+          nextval (sql/call :nextval (name table-seq))]
+      (doseq [temp-id temp-ids]
+        (qb/add-select qb [nextval temp-id]))
+      (first
+       (en/query en (qb/format qb) {:keywordize? false})))))

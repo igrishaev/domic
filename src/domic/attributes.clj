@@ -41,7 +41,12 @@
 
 (def defaults
 
-  [{:db/ident       :db/valueType
+  [{:db/ident       :db/ident
+    :db/valueType   :db.type/keyword
+    :db/unique      :db.unique/identity
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :db/valueType
     :db/valueType   :db.type/keyword
     :db/index       true
     :db/cardinality :db.cardinality/one}
@@ -56,7 +61,6 @@
 
    {:db/ident       :db/unique
     :db/valueType   :db.type/keyword
-    :db/unique      :db.unique/value
     :db/cardinality :db.cardinality/one}
 
    {:db/ident       :db/index
@@ -73,11 +77,6 @@
 
    {:db/ident       :db/noHistory
     :db/valueType   :db.type/boolean
-    :db/cardinality :db.cardinality/one}
-
-   {:db/ident       :db/ident
-    :db/valueType   :db.type/keyword
-    :db/unique      :db.unique/identity
     :db/cardinality :db.cardinality/one}
 
    {:db/ident       :db/txInstant

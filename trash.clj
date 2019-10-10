@@ -952,3 +952,22 @@ and
               (domic.db/pg)
               _rules
               )
+
+
+
+[{:db/ident       :artist/name
+  :db/valueType   :db.type/string
+  :db/cardinality :db.cardinality/one}
+
+ {:db/ident       :release/artist
+  :db/valueType   :db.type/ref
+  :db/cardinality :db.cardinality/one
+  :db/isComponent true}
+
+ {:db/ident       :release/year
+  :db/valueType   :db.type/long
+  :db/cardinality :db.cardinality/one}
+
+ {:db/ident       :release/tag
+  :db/valueType   :db.type/string
+  :db/cardinality :db.cardinality/many}]

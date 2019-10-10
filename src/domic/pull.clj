@@ -308,6 +308,28 @@
         (en/query-rs en query (rs->datoms scope))))))
 
 
+(defn -pull-attrs
+  [{:as scope :keys [table
+                     en am]}]
+
+  (let [qp (qp/params)
+        add-param (partial qp/add-alias qp)
+
+        sub (sql/build
+             :select :e
+             :from table
+             :where [:= :a (add-param :db/valueType)])
+
+        sql (sql/build
+             :select :*
+             :from table
+             :where [:in :e sub])
+
+        query (sql/format sql @qp)]
+
+    (en/query-rs en query (rs->maps scope))))
+
+
 #_
 (do
   (pull _scope '[:artist/*] [:db/ident :metallica])

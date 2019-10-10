@@ -12,16 +12,16 @@
 ;; rename table_seq
 
 (defn ->scope
-  [db-spec attrs & [{:keys [table prefix]
-                     :or {table :datoms
-                          prefix ""}}]]
+  [db-spec & [{:keys [table prefix]
+               :or {table :datoms
+                    prefix ""}}]]
 
   (let [table*    (str prefix (name table))
         table-log (str table* "_log")
         table-seq (str table* "_seq")
 
         en (en/engine db-spec)
-        am (am/manager attrs)]
+        am (am/manager)]
 
     {:en en
      :am am
@@ -33,6 +33,13 @@
 (defn init
   [scope]
   (init/init scope))
+
+
+(defn sync-attrs
+  [{:as scope :keys [am]}]
+  (let [attrs (pull/-pull-attrs _scope)]
+    (am/reset am attrs))
+  nil)
 
 
 (defn pull
@@ -76,24 +83,6 @@
       :user "ivan"
       :password "ivan"
       :assumeMinServerVersion "10"}
-
-     [{:db/ident       :artist/name
-       :db/valueType   :db.type/string
-       :db/cardinality :db.cardinality/one}
-
-      {:db/ident       :release/artist
-       :db/valueType   :db.type/ref
-       :db/cardinality :db.cardinality/one
-       :db/isComponent true}
-
-      {:db/ident       :release/year
-       :db/valueType   :db.type/long
-       :db/unique      :db.unique/value
-       :db/cardinality :db.cardinality/one}
-
-      {:db/ident       :release/tag
-       :db/valueType   :db.type/string
-       :db/cardinality :db.cardinality/many}]
 
      {:prefix "__test_"}
 

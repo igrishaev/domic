@@ -31,9 +31,6 @@
     [this sql-map]
     [this sql-map params])
 
-  (insert-multi
-    [this table rows])
-
   (query-rs [this query rs-fn])
 
   (query

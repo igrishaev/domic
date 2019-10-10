@@ -4,7 +4,10 @@
    [domic.util :as u]
    [domic.engine :as en]
    [domic.attr-manager :as am]
-   [domic.util :refer [kw->str]]
+   [domic.attributes :as at]
+   [domic.transact :as transact]
+   [domic.query-params :as qp]
+   [domic.query-builder :as qb]
 
    [clojure.java.jdbc :as jdbc]
    [honeysql.core :as sql]))
@@ -91,10 +94,17 @@
       (en/execute en query))))
 
 
+(defn init-attrs
+  [scope]
+  (transact/transact scope at/defaults))
+
+
 (defn init
   [{:as scope :keys [en]}]
   (en/with-tx [en en]
     (let [scope (assoc scope :en en)]
-      (init-tables scope)
-      (init-indexes scope)
-      (init-seq scope))))
+      (doto scope
+        init-tables
+        init-indexes
+        init-seq
+        init-attrs))))

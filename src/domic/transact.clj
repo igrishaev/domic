@@ -2,7 +2,7 @@
   (:require
    [domic.sql-helpers :as h]
    [domic.util :as util]
-   [domic.runtime :as runtime]
+   [domic.runtime :as rt]
    [domic.query-params :as qp]
    [domic.query-builder :as qb]
    [domic.error :as e]
@@ -20,17 +20,7 @@
 ;; process functions
 
 
-(defn fetch-db-ids
-  [{:as scope :keys [table-seq
-                     en]}
-   temp-ids]
-  (when (seq temp-ids)
-    (let [qb (qb/builder)
-          nextval (sql/call :nextval (name table-seq))]
-      (doseq [temp-id temp-ids]
-        (qb/add-select qb [nextval temp-id]))
-      (first
-       (en/query en (qb/format qb) {:keywordize? false})))))
+
 
 
 (defn collect-temp-ids
@@ -273,7 +263,7 @@
             temp-ids (collect-temp-ids scope datoms)
             t-tmp-id (str (gensym "tx"))
             temp-ids (conj temp-ids t-tmp-id)
-            -ids-map   (fetch-db-ids scope temp-ids)
+            -ids-map (rt/allocate-db-ids scope temp-ids)
             ->db-id  (fn [temp-id]
                        (or (get -ids-map temp-id)
                            (e/error! "Cannot resolve temp-id: %s" temp-id)))

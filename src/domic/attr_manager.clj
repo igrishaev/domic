@@ -6,8 +6,6 @@
    [domic.util :as u]
    [domic.error :as e]))
 
-;; todo
-;; extend print
 
 (defn- group-attrs
   [attr-list]
@@ -28,6 +26,8 @@
   (-field-equal? [this attr field value])
 
   (validate-many! [this attrs])
+
+  (reset [this attr-list])
 
   (known? [this attr])
 
@@ -53,16 +53,16 @@
 
 
 (defrecord AttrManager
-    [attr-map]
+    [attr-map*]
 
   clojure.lang.IDeref
 
-  (deref [this] (keys attr-map))
+  (deref [this] (set (keys @attr-map*)))
 
   IAttrManager
 
   (-get-field [this attr field]
-    (get-in attr-map [attr field]))
+    (get-in @attr-map* [attr field]))
 
   (-has-field? [this attr field]
     (some? (-get-field this attr field)))
@@ -74,11 +74,17 @@
     (when-let [diff (not-empty
                      (set/difference
                       (set attrs)
-                      (set (keys attr-map))))]
+                      @this))]
       (e/error! "Unknown attr(s): %s" (u/join diff))))
 
+  (reset [this attr-list]
+    (let [attrs* (-> at/defaults
+                     (concat attr-list)
+                     group-attrs)]
+      (reset! attr-map* attrs*)))
+
   (known? [this attr]
-    (contains? attr-map attr))
+    (contains? @attr-map* attr))
 
   (index? [this attr]
     (-has-field? this attr :db/index))
@@ -103,10 +109,11 @@
 
   (by-wildcard [this attr]
     (let [a-ns (namespace attr)
-          a-keys (keys attr-map)]
-      (for [a-key a-keys
-            :when (= (namespace a-key) a-ns)]
-        a-key)))
+          a-keys @this]
+      (set
+       (for [a-key a-keys
+             :when (= (namespace a-key) a-ns)]
+         a-key))))
 
   (get-type [this attr]
     (or
@@ -122,10 +129,8 @@
   ([]
    (manager nil))
   ([attr-list]
-   (let [attrs* (-> at/defaults
-                    (concat attr-list)
-                    group-attrs)]
-     (->AttrManager attrs*))))
+   (doto (->AttrManager (atom {}))
+     (reset attr-list))))
 
 
 (u/extend-print AttrManager)
