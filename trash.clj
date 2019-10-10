@@ -972,3 +972,35 @@ and
  {:db/ident       :release/tag
   :db/valueType   :db.type/string
   :db/cardinality :db.cardinality/many}]
+
+
+
+(q _scope '[:find ?name
+                       :in $
+                       :where
+                       [$ _ :artist/name ?name]
+
+                       ]
+
+              (domic.source/table :__test_datoms)
+              )
+
+
+
+(q _scope '[:find ?name
+:in $
+:where
+[$ ?a ?b ?c]
+]
+
+[[1 2 3]
+[4 5 6]
+[7 8 9]]
+
+)
+
+
+(init-db [db {:keys [qb]}]
+           (let [{:keys [alias fields data]} db
+                 with [[alias {:columns fields}] {:values data}]]
+(qb/add-with qb with)))

@@ -169,16 +169,12 @@
 
 (defprotocol ISourceActions
 
-  (init-db [db scope])
-
   (add-pattern-db [src scope expression]))
 
 
 (extend-protocol ISourceActions
 
   Table
-
-  (init-db [src scope])
 
   (add-pattern-db [src scope expression]
 
@@ -263,11 +259,8 @@
 
   Dataset
 
-  #_
-  (init-db [db {:keys [qb]}]
-    (let [{:keys [alias fields data]} db
-          with [[alias {:columns fields}] {:values data}]]
-      (qb/add-with qb with)))
+  (add-pattern-db [db scope expression]
+    nil)
 
   #_
   (add-pattern-db [db scope expression]
@@ -304,14 +297,41 @@
       nil)))
 
 
-(def SRC-DEFAULT)
+(def SRC-DEFAULT '$)
 
 
 (defn- add-pattern
   [{:as scope :keys [sm]} expression]
   (let [{:keys [src-var]} expression
         src (sm/get-source sm (or src-var SRC-DEFAULT))]
+
+    ;; todo
+    ;; (println "---" expression src-var src)
+
     (add-pattern-db src scope expression)))
+
+
+(defn- ->dataset
+  [{:as scope :keys [sg]}
+   values]
+  (let [[row] values
+        alias (sg "data")
+        fields (for [_ row] (sg "f"))]
+    (src/dataset alias fields)))
+
+
+(defn- add-dataset
+  [{:as scope :keys [qb qp]}
+   src values]
+  (let [alias (src/get-alias src)
+        fields (src/get-fields src)
+        values* (mapv (fn [row]
+                        (mapv (fn [value]
+                                (qp/add-alias qp value))
+                              row))
+                      values)
+        with [[alias {:columns fields}] {:values values*}]]
+    (qb/add-with qb with)))
 
 
 (defn- process-in
@@ -322,10 +342,11 @@
         n-params (count params)]
     (when-not (= n-inputs n-params)
       (e/error! "Arity mismatch: %s input(s) and %s param(s)"
-              n-inputs n-params)))
+                n-inputs n-params)))
 
   (doseq [[input param] (u/zip inputs params)]
     (let [[tag input] input]
+
       (case tag
 
         :rules-var
@@ -333,7 +354,17 @@
           (rm/set-rules rm rule-map))
 
         :src-var
-        (sm/add-source sm input param)
+        (cond
+          (src/table? param)
+          (sm/add-source sm input param)
+
+          (vector? param)
+          (let [dataset (->dataset scope param)]
+            (sm/add-source sm input dataset)
+            (add-dataset scope dataset param))
+
+          :else
+          (e/error-case! param))
 
         :binding
         (let [[tag input] input]
@@ -380,7 +411,7 @@
                   (case tag
                     :var
                     (vm/bind vm input param
-                              :in input-src (type param-el))))))
+                             :in input-src (type param-el))))))
 
             :bind-scalar
             (let [value (if (h/lookup? param)
@@ -641,8 +672,7 @@
 
         find-type (get-find-type spec)]
 
-    ;; (sm/add-source sm SRC-DEFAULT
-    ;;                (source/table table))
+    (sm/add-source sm SRC-DEFAULT (src/table table))
 
     (case find-type
       :scalar

@@ -25,7 +25,7 @@
 
 
 (defrecord Dataset
-    [-alias -fields -data]
+    [-alias -fields]
 
   ISource
 
@@ -33,21 +33,18 @@
     -alias)
 
   (get-fields [this]
-    -fields)
-
-  (get-data [this]
-    -data))
+    -fields))
 
 
 (defn table [-alias]
-  (->Table alias))
+  (->Table -alias))
 
 
 (def table? (partial instance? Table))
 
 
-(defn dataset [-alias -fields -data]
-  (->Dataset -alias -fields -data))
+(defn dataset [-alias -fields]
+  (->Dataset -alias -fields))
 
 
 (def dataset? (partial instance? Dataset))
