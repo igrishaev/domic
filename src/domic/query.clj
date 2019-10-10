@@ -39,7 +39,6 @@
 (def rules
   '
   [
-
    [(artist-name? [?a] ?name)
     [?a :artist/name ?name]]
 
@@ -61,32 +60,7 @@
    :in $xs $ys
    :where (or-join [?a ?c]
                    [$xs ?a ?b ?c]
-                   [$ys ?a ?c])]
-
-
-  #_
-
-  [:find ?a ?b ?c
-   :in $xs $ys
-   :where [$xs ?a ?b ?c]
-   (or-join [?a]
-            [$ys ?a ?b ?d])]
-
-  #_
-
-  [:find ?e ?name
-   :in
-   :where
-
-
-
-   (or-join [[?e] ?name]
-            [?e :artist/name ?name])
-
-   ;; [?e :db/ident :metallica]
-   ;; (artist-name? ?e ?n)
-
-   ])
+                   [$ys ?a ?c])])
 
 
 (defn- group-rules
@@ -192,15 +166,17 @@
         (let [[tag elem] elem*
               v? (= field :v)
 
-              alias-sub-field (sql/inline (sql/qualify alias-sub field))
-              alias-sub-field (if (and v? attr)
-                                (h/->cast alias-sub-field pg-type)
-                                alias-sub-field)
+              ->cast (fn [sql]
+                       (if (and v? attr)
+                         (h/->cast sql pg-type)
+                         sql))
 
-              alias-fq (sql/qualify alias-table field)
-              alias-fq (if (and v? attr)
-                         (h/->cast alias-fq pg-type)
-                         alias-fq)]
+              alias-sub-field (-> (sql/qualify alias-sub field)
+                                  (sql/inline)
+                                  (->cast))
+
+              alias-fq (-> (sql/qualify alias-table field)
+                           (->cast))]
 
           (case tag
 
