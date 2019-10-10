@@ -447,10 +447,11 @@
   (let [{:keys [rule-name
                 vars]} expression
 
-        vars-dst (for [var vars]
-                   (let [[tag var] var]
-                     (case tag
-                       :var var)))
+        vars-dst (vec
+                  (for [var vars]
+                    (let [[tag var] var]
+                      (case tag
+                        :var var))))
 
         rule (rm/get-rule rm rule-name)
 
@@ -464,8 +465,8 @@
         arity-src (count vars-src-pairs)
 
         _ (when-not (= arity-src arity-dst)
-            (e/error! "Arity error in rule %s: %s <=> %s"
-                      rule-name arity-dst arity-src))
+            (e/error! "Arity mismatch in rule %s: %s <> %s"
+                      rule-name vars-dst (mapv first vars-src-pairs)))
 
         vm-dst (:vm scope)
         vm-src (vm/manager)

@@ -939,3 +939,16 @@ and
 
 -      (when *nested?*
 -        (join-and (persistent! wheres*)))))
+
+
+(q _scope '[:find ?r ?y
+                       :in $ %
+                       :where
+                       [$ ?r :release/year]
+                       (release-of-year? ?r ?y)
+                       [(= ?y 1223)]
+
+                       ]
+              (domic.db/pg)
+              _rules
+              )

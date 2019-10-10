@@ -102,6 +102,11 @@
   (def _rules
     '
     [[(queen? ?a)
-      [?a :artist/name "Queen"]]])
+      [?a :artist/name "Queen"]]
+
+     [(release-of-year? [?r] ?y)
+      [?r :release/year ?y]]
+
+     ])
 
   )

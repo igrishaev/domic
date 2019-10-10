@@ -331,7 +331,7 @@
 (s/def ::rule-head
   (s/spec (s/cat :name ::rule-name
                  :vars-req (s/? (s/spec (s/+ ::variable)))
-                 :vars-opt (s/+ ::variable))))
+                 :vars-opt (s/* ::variable))))
 
 
 ;; ---- Special ---------------------------------------------------------------
