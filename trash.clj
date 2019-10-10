@@ -949,6 +949,7 @@ and
                        [(= ?y 1223)]
 
                        ]
+
               (domic.db/pg)
               _rules
               )

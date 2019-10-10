@@ -8,13 +8,12 @@
    [domic.runtime :refer [resolve-lookup!]]
    [domic.rule-manager :as rm]
    [domic.error :as e]
-   [domic.db :as db]
    [domic.var-manager :as vm]
    [domic.query-builder :as qb]
    [domic.pp-manager :as pp]
-   [domic.db-manager :as dm]
    [domic.util :as u]
-   [domic.db :as db]
+   [domic.source :as src]
+   [domic.source-manager :as sm]
    [domic.query-params :as qp]
    [domic.attr-manager :as am]
    [domic.engine :as en]
@@ -23,7 +22,7 @@
    [honeysql.core :as sql])
 
   (:import
-   [domic.db DBPG DBTable]))
+   [domic.source Table Dataset]))
 
 
 ;; todo
@@ -46,6 +45,9 @@
    :where (or-join [?a ?c]
                    [$xs ?a ?b ?c]
                    [$ys ?a ?c])])
+
+
+(declare process-clauses)
 
 
 (defn group-rules
@@ -165,24 +167,27 @@
             elem))))))
 
 
-(defprotocol IDBActions
+(defprotocol ISourceActions
 
   (init-db [db scope])
 
-  (add-pattern-db [db scope expression]))
+  (add-pattern-db [src scope expression]))
 
 
-(extend-protocol IDBActions
+(extend-protocol ISourceActions
 
-  DBPG
+  Table
 
-  (init-db [db scope])
+  (init-db [src scope])
 
-  (add-pattern-db [db scope expression]
+  (add-pattern-db [src scope expression]
 
     (let [{:keys [table
                   qb sg vm qp am]} scope
-          {:keys [alias fields]} db
+
+          alias (src/get-alias src)
+          fields (src/get-fields src)
+
           {:keys [elems]} expression
 
           wheres* (transient [])
@@ -256,13 +261,15 @@
 
       nil))
 
-  DBTable
+  Dataset
 
+  #_
   (init-db [db {:keys [qb]}]
     (let [{:keys [alias fields data]} db
           with [[alias {:columns fields}] {:values data}]]
       (qb/add-with qb with)))
 
+  #_
   (add-pattern-db [db scope expression]
 
     (let [{:keys [qb sg vm]} scope
@@ -297,61 +304,18 @@
       nil)))
 
 
+(def SRC-DEFAULT)
+
+
 (defn- add-pattern
-  [{:as scope :keys [dm]} expression]
+  [{:as scope :keys [sm]} expression]
   (let [{:keys [src-var]} expression
-        db (if src-var
-             (dm/get-db! dm src-var)
-             (dm/default-db! dm))]
-    (add-pattern-db db scope expression)))
-
-
-(defn- process-clauses
-  [{:as scope :keys [qb]}
-   clauses]
-
-  (doseq [clause clauses]
-
-    (let [[tag expression] clause]
-
-      (case tag
-
-        :data-pattern
-        (add-pattern scope expression)
-
-        :bool-expr
-        (let [where (process-bool-expr scope expression)]
-          (qb/add-where qb where))
-
-        :rule-expr
-        (add-rule scope expression)
-
-        :fn-expr
-        (add-function scope expression)
-
-        :pred-expr
-        (let [where (add-predicate scope expression)]
-          (qb/add-where qb where))
-
-        ;; else
-        (e/error-case! clause)))))
-
-
-(defn- discover-db
-  [{:keys [sg]} var data]
-  (cond
-    (db/pg? data) data
-    (coll? data)
-    (let [[row] data
-          alias-coll (sg "data")
-          alias-fields (for [_ row] (sg "f"))]
-      (db/table alias-coll alias-fields data))
-    :else
-    (e/error! "Wrong database: %s" var)))
+        src (sm/get-source sm (or src-var SRC-DEFAULT))]
+    (add-pattern-db src scope expression)))
 
 
 (defn- process-in
-  [{:as scope :keys [vm qb dm sg qp rm]}
+  [{:as scope :keys [vm qb dm sg qp rm sm]}
    inputs params]
 
   (let [n-inputs (count inputs)
@@ -369,9 +333,7 @@
           (rm/set-rules rm rule-map))
 
         :src-var
-        (let [db (discover-db scope input param)]
-          (init-db db scope)
-          (dm/add-db dm input db))
+        (sm/add-source sm input param)
 
         :binding
         (let [[tag input] input]
@@ -488,6 +450,37 @@
     (vm/consume vm-dst vm-src)
 
     nil))
+
+
+(defn- process-clauses
+  [{:as scope :keys [qb]}
+   clauses]
+
+  (doseq [clause clauses]
+
+    (let [[tag expression] clause]
+
+      (case tag
+
+        :data-pattern
+        (add-pattern scope expression)
+
+        :bool-expr
+        (let [where (process-bool-expr scope expression)]
+          (qb/add-where qb where))
+
+        :rule-expr
+        (add-rule scope expression)
+
+        :fn-expr
+        (add-function scope expression)
+
+        :pred-expr
+        (let [where (add-predicate scope expression)]
+          (qb/add-where qb where))
+
+        ;; else
+        (e/error-case! clause)))))
 
 
 (defn- process-where
@@ -625,7 +618,8 @@
 
 
 (defn- q-internal
-  [{:as scope :keys [en am]}
+  [{:as scope :keys [table
+                     en am]}
    query-parsed
    & query-inputs]
 
@@ -634,11 +628,11 @@
                      :vm (vm/manager)
                      :qb (qb/builder)
                      :rm (rm/manager)
-                     :dm (dm/manager)
+                     :sm (sm/manager)
                      :qp (qp/params)
                      :pp (pp/manager))
 
-        {:keys [qb qp]} scope
+        {:keys [qb qp sm]} scope
 
         {:keys [find in where]} query-parsed
         {:keys [inputs]} in
@@ -646,6 +640,9 @@
         {:keys [clauses]} where
 
         find-type (get-find-type spec)]
+
+    ;; (sm/add-source sm SRC-DEFAULT
+    ;;                (source/table table))
 
     (case find-type
       :scalar

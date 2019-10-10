@@ -35,7 +35,7 @@
 
 (defn sync-attrs
   [{:as scope :keys [am]}]
-  (let [attrs (pull/-pull-attrs _scope)]
+  (let [attrs (pull/-pull-attrs scope)]
     (am/reset am attrs))
   nil)
 
