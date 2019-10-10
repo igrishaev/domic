@@ -236,8 +236,8 @@
 (s/def ::input
   (s/or :src-var ::src-var
         :binding ::binding
-        :pattern-var ::pattern-var
-        :rules-var ::rules-var))
+        :rules-var ::rules-var
+        :pattern-var ::pattern-var))
 
 (s/def ::src-var
   (s/and simple-symbol? #(str/starts-with? (name %) "$")))
@@ -325,12 +325,14 @@
   (s/spec (s/cat :head ::rule-head
                  :clauses (s/+ ::clause))))
 
-(s/def ::rule-head
-  (s/spec (s/cat :name ::rule-name
-                 :vars ::rule-vars)))
-
 (s/def ::rule-name
   ::plain-symbol)
+
+(s/def ::rule-head
+  (s/spec (s/cat :name ::rule-name
+                 :vars-req (s/? (s/spec (s/+ ::variable)))
+                 :vars-opt (s/+ ::variable))))
+
 
 ;; ---- Special ---------------------------------------------------------------
 

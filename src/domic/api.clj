@@ -97,4 +97,11 @@
 
      {:prefix "__test_"}
 
-     )))
+     ))
+
+  (def _rules
+    '
+    [[(queen? ?a)
+      [?a :artist/name "Queen"]]])
+
+  )

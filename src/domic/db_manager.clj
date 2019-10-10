@@ -1,6 +1,6 @@
 (ns domic.db-manager
   (:require
-   [domic.error :refer [error!]]))
+   [domic.error :as e]))
 
 
 (defprotocol IDBManager
@@ -29,19 +29,16 @@
 
   (get-db! [this var]
     (or (get-db this var)
-        (error! "No such db: %s" var)))
+        (e/error! "No such db: %s" var)))
 
   (default-db [this]
     (some-> @dbs first second))
 
   (default-db! [this]
     (or (default-db this)
-        (error! "No default database"))))
+        (e/error! "No default database"))))
 
 
 (defn manager
   []
   (->DBManager (atom (sorted-map))))
-
-
-(def manager? (partial satisfies? IDBManager))

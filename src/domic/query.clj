@@ -6,6 +6,7 @@
    [domic.pull :as pull]
    [domic.sql-helpers :as h]
    [domic.runtime :refer [resolve-lookup!]]
+   [domic.rule-manager :as rm]
    [domic.error :as e]
    [domic.db :as db]
    [domic.var-manager :as vm]
@@ -17,7 +18,7 @@
    [domic.query-params :as qp]
    [domic.attr-manager :as am]
    [domic.engine :as en]
-   [domic.spec-datomic :as ds]
+   [domic.spec-datomic :as sd]
 
    [honeysql.core :as sql])
 
@@ -46,9 +47,9 @@
                    [$ys ?a ?c])])
 
 
-(defn- group-rules
+(defn group-rules
   [rules]
-  (let [rules* (s/conform ::ds/rules rules)]
+  (let [rules* (s/conform ::sd/rules rules)]
     (when (= rules* ::s/invalid)
       (e/error! "Wrong rules: %s" rules*))
     (into {} (for [rule* rules*]
@@ -64,6 +65,7 @@
     ;; else
     (when-let [clauses* (not-empty (filter some? clauses))]
       (into [op] clauses*))))
+
 
 (def join-and (partial join-op :and))
 (def join-or  (partial join-op :or))
@@ -177,7 +179,8 @@
 
   (add-pattern-db [db scope expression]
 
-    (let [{:keys [qb sg vm qp am lvl table]} scope
+    (let [{:keys [table
+                  qb sg vm qp am]} scope
           {:keys [alias fields]} db
           {:keys [elems]} expression
 
@@ -260,7 +263,7 @@
 
   (add-pattern-db [db scope expression]
 
-    (let [{:keys [qb sg vm lvl]} scope
+    (let [{:keys [qb sg vm]} scope
           {:keys [alias fields]} db
           {:keys [elems]} expression
           alias-layer (sg "layer")
@@ -349,7 +352,7 @@
 
 
 (defn- process-in
-  [{:as scope :keys [vm qb dm sg qp]}
+  [{:as scope :keys [vm qb dm sg qp rm]}
    inputs params]
 
   (let [n-inputs (count inputs)
@@ -358,14 +361,13 @@
       (e/error! "Arity mismatch: %s input(s) and %s param(s)"
               n-inputs n-params)))
 
-  (doseq [[input-src param] (u/zip inputs params)]
-    (let [[tag input] input-src]
+  (doseq [[input param] (u/zip inputs params)]
+    (let [[tag input] input]
       (case tag
 
-        ;; todo add rules
-        ;; :pattern-var
-        ;; (let [rules* (group-rules input)]
-        ;;   )
+        :pattern-var
+        (let [rule-map (group-rules input)]
+          (rm/set-rules rm rule-map))
 
         :src-var
         (let [db (discover-db scope input param)]
@@ -444,7 +446,7 @@
 
 
 (defn- add-rule
-  [scope
+  [{:as scope :keys [rm]}
    expression]
 
   (let [{:keys [rule-name vars]} expression
@@ -454,11 +456,7 @@
                      (case tag
                        :var var)))
 
-
-        rule (get :TODO rule-name)
-
-        _ (when-not rule
-            (e/error! "Cannot resolve a rule %s" rule-name))
+        rule (rm/get-rule rm rule-name)
 
         {:keys [clauses head]} rule
         {:keys [vars]} head
@@ -469,7 +467,8 @@
         arity-src (count vars-src-pairs)
 
         _ (when-not (= arity-src arity-dst)
-            (e/error! "Arity error in rule %s" rule-name))
+            (e/error! "Arity error in rule %s: %s <=> %s"
+                      rule-name arity-dst arity-src))
 
         vm-dst (:vm scope)
         vm-src (vm/manager)
@@ -635,10 +634,10 @@
    & query-inputs]
 
   (let [scope (assoc scope
-                     :lvl 0
                      :sg (u/sym-generator)
                      :vm (vm/manager)
                      :qb (qb/builder)
+                     :rm (rm/manager)
                      :dm (dm/manager)
                      :qp (qp/params)
                      :pp (pp/manager))
@@ -673,7 +672,7 @@
 
 (defn- parse-query
   [query-list]
-  (let [result (s/conform ::ds/query query-list)]
+  (let [result (s/conform ::sd/query query-list)]
     (if (= result ::s/invalid)
       (e/error! "Cannot parse query: %s" query-list)
       result)))
