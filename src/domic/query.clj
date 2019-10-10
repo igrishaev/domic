@@ -27,11 +27,12 @@
 
 
 ;; todo
-;; unify rules
 ;; unify databases (rename to table/dataset)
+;; cast datasets to params
+
+;; debug flag?
 ;; process with
 ;; process maps
-;; cast datasets to params
 ;; fix tuple binding
 ;; deal with pull pattern
 ;; detect idents
@@ -293,10 +294,7 @@
             ;; else
             (e/error-case! elem*))))
 
-      #_
-      (finish-layer scope
-                    [alias alias-layer]
-                    (persistent! where*)))))
+      nil)))
 
 
 (defn- add-pattern
