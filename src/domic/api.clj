@@ -8,8 +8,6 @@
    [domic.pull :as pull]
    [domic.query :as query]))
 
-;; todo
-;; rename table_seq
 
 (defn ->scope
   [db-spec & [{:keys [table prefix]
@@ -87,6 +85,8 @@
      {:prefix "__test_"}
 
      ))
+
+  (sync-attrs _scope)
 
   (def _rules
     '

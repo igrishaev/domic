@@ -230,7 +230,6 @@
 (defn transact
   [{:as scope :keys [table
                      table-log
-                     table-seq
                      en am]}
    tx-data]
 
