@@ -911,3 +911,22 @@ and
    #_
    [(foobar ?len ?max)
     [?t :track/artists ?a]]])
+
+
+
+[{:head {:name queen?, :vars-req [?a], :vars-opt [?foo ?bar]},
+  :clauses
+  [[:data-pattern
+    {:elems
+     [[:var ?a] [:cst [:kw :artist/name]] [:cst [:str "Queen"]]]}]]}]
+
+
+
+(q _scope '[:find ?a ?name
+                       :in $ %
+                       :where
+                       [$ ?a :artist/name ?name]
+                       (queen? ?a)]
+              (domic.db/pg)
+              _rules
+              )

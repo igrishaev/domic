@@ -51,7 +51,7 @@
   [rules]
   (let [rules* (s/conform ::sd/rules rules)]
     (when (= rules* ::s/invalid)
-      (e/error! "Wrong rules: %s" rules*))
+      (e/error! "Wrong rules: %s" rules))
     (into {} (for [rule* rules*]
                [(-> rule* :head :name) rule*]))))
 
@@ -324,8 +324,8 @@
         (let [where (process-bool-expr scope expression)]
           (qb/add-where qb where))
 
-        ;; :rule-expr
-        ;; (add-rule scope expression)
+        :rule-expr
+        (add-rule scope expression)
 
         :fn-expr
         (add-function scope expression)
@@ -365,8 +365,8 @@
     (let [[tag input] input]
       (case tag
 
-        :pattern-var
-        (let [rule-map (group-rules input)]
+        :rules-var
+        (let [rule-map (group-rules param)]
           (rm/set-rules rm rule-map))
 
         :src-var
@@ -432,24 +432,19 @@
 
 
 (defn- split-rule-vars
-  [rule-vars]
-  (let [var-map (apply hash-map rule-vars)
-        {:keys [vars* vars]} var-map
-        {:keys [in out]} vars*]
-    (concat
-     (for [var in]
-       [var true])
-     (for [var out]
-       [var false])
-     (for [var vars]
-       [var false]))))
+  [vars-req vars-opt]
+  (concat (for [var vars-req]
+            [var true])
+          (for [var vars-opt]
+            [var false])))
 
 
 (defn- add-rule
   [{:as scope :keys [rm]}
    expression]
 
-  (let [{:keys [rule-name vars]} expression
+  (let [{:keys [rule-name
+                vars]} expression
 
         vars-dst (for [var vars]
                    (let [[tag var] var]
@@ -459,9 +454,10 @@
         rule (rm/get-rule rm rule-name)
 
         {:keys [clauses head]} rule
-        {:keys [vars]} head
+        {:keys [vars-req
+                vars-opt]} head
 
-        vars-src-pairs (split-rule-vars vars)
+        vars-src-pairs (split-rule-vars vars-req vars-opt)
 
         arity-dst (count vars-dst)
         arity-src (count vars-src-pairs)
@@ -491,7 +487,7 @@
 
     (vm/consume vm-dst vm-src)
 
-    (join-and result)))
+    nil))
 
 
 (defn- process-where
