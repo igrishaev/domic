@@ -877,3 +877,37 @@ and
               (domic.db/pg)
 
               )
+
+
+
+(q _scope '[:find ?y ?name
+                       :in $
+                       :where
+                       [$ ?a :artist/name ?name]
+                       [$ ?r :release/artist ?a]
+                       [$ ?r :release/year ?y]
+                       (or [(= ?name "Test")]
+                           [(= ?name "G G G")])
+
+                       ]
+              (domic.db/pg)
+              )
+
+
+
+
+(def rules
+  '
+  [
+   [(artist-name? [?a] ?name)
+    [?a :artist/name ?name]]
+
+   #_
+   [(short-track [?a ?t] ?len ?max)
+    [?t :track/artists ?a]
+    [?t :track/duration ?len]
+    [(< ?len ?max)]]
+
+   #_
+   [(foobar ?len ?max)
+    [?t :track/artists ?a]]])

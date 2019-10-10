@@ -36,23 +36,6 @@
 ;; detect idents
 
 
-(def rules
-  '
-  [
-   [(artist-name? [?a] ?name)
-    [?a :artist/name ?name]]
-
-   #_
-   [(short-track [?a ?t] ?len ?max)
-    [?t :track/artists ?a]
-    [?t :track/duration ?len]
-    [(< ?len ?max)]]
-
-   #_
-   [(foobar ?len ?max)
-    [?t :track/artists ?a]]])
-
-
 (def query
   '
 
@@ -86,11 +69,85 @@
 (def join-or  (partial join-op :or))
 
 
-(defprotocol IDBActions
+(defn- add-predicate
+  [scope expression]
 
-  (init-db [db scope])
+  (let [{:keys [qb vm sg qp]} scope
+        {:keys [expr]} expression
+        {:keys [pred args]} expr
 
-  (add-pattern-db [db scope expression]))
+        [pred-tag pred] pred
+
+        args* (vec
+               (for [arg args]
+                 (let [[tag arg] arg]
+                   (case tag
+
+                     :var
+                     (vm/get-val vm arg)
+
+                     :cst
+                     (let [[tag arg] arg]
+                       (let [param (sg "param")]
+                         (qp/add-param qp param arg)
+                         (sql/param param)))))))
+
+        pred-expr (into [pred] args*)]
+
+    (case pred-tag
+      :sym
+      pred-expr
+      ;; else
+      (e/error-case! pred-tag))))
+
+
+(defn- process-bool-expr
+  [scope
+   expression]
+
+  (let [{:keys [op clauses]} expression]
+    (join-op op (doall (for [[tag expression] clauses]
+                         (case tag
+
+                           :pred-expr
+                           (add-predicate scope expression)
+
+                           :bool-expr
+                           (process-bool-expr scope expression)))))))
+
+
+(defn- add-function
+  [{:as scope :keys [qb vm sg qp]}
+   expression]
+
+  (let [{:keys [expr binding]} expression
+        {:keys [fn args]} expr
+
+        args* (for [arg args]
+                (let [[tag arg] arg]
+                  (case tag
+                    :var
+                    (vm/get-val vm arg)
+
+                    :cst
+                    (let [[tag arg] arg]
+                      (let [param (sg "param")]
+                        (qp/add-param qp param arg)
+                        (sql/param param))))))
+
+        [fn-tag fn] fn
+        [bind-tag binding] binding
+
+        fn-expr
+        (case fn-tag
+          :sym
+          (apply sql/call fn args*))]
+
+    (case bind-tag
+      :bind-scalar
+      (vm/bind vm binding fn-expr)))
+
+  nil)
 
 
 (defn- find-attr
@@ -105,29 +162,11 @@
             elem))))))
 
 
-;; todo
-(defn- finish-layer
-  [{:as scope :keys [qb lvl]}
-   table where]
+(defprotocol IDBActions
 
-  (let [where (join-and where)
-        [_ alias-layer] table]
+  (init-db [db scope])
 
-    (if (qb/empty-from? qb)
-
-      (do
-        (qb/add-from qb table)
-        where)
-
-      (if (zero? lvl)
-
-        (do
-          (qb/add-join qb table where)
-          nil)
-
-        (do
-          (qb/add-left-join qb table where)
-          [:is-not alias-layer nil])))))
+  (add-pattern-db [db scope expression]))
 
 
 (extend-protocol IDBActions
@@ -196,11 +235,6 @@
 
                 (when-let [src (-> val meta :src)]
                   (qb/add-from? qb-sub src)
-
-                  (if *nested?*
-                    (conj! wheres* [:= alias-sub-field val])
-                    (qb/add-where qb [:= alias-sub-field val]))
-
                   (qb/add-from? qb alias-sub)))
 
               (vm/bind vm elem
@@ -215,8 +249,7 @@
       (qb/add-with qb [alias-sub (qb/->map qb-sub)])
       (qb/add-from? qb alias-sub)
 
-      (when *nested?*
-        (join-and (persistent! wheres*)))))
+      nil))
 
   DBTable
 
@@ -256,9 +289,50 @@
             ;; else
             (e/error-case! elem*))))
 
+      #_
       (finish-layer scope
                     [alias alias-layer]
                     (persistent! where*)))))
+
+
+(defn- add-pattern
+  [{:as scope :keys [dm]} expression]
+  (let [{:keys [src-var]} expression
+        db (if src-var
+             (dm/get-db! dm src-var)
+             (dm/default-db! dm))]
+    (add-pattern-db db scope expression)))
+
+
+(defn- process-clauses
+  [{:as scope :keys [qb]}
+   clauses]
+
+  (doseq [clause clauses]
+
+    (let [[tag expression] clause]
+
+      (case tag
+
+        :data-pattern
+        (add-pattern scope expression)
+
+        :bool-expr
+        (let [where (process-bool-expr scope expression)]
+          (qb/add-where qb where))
+
+        ;; :rule-expr
+        ;; (add-rule scope expression)
+
+        :fn-expr
+        (add-function scope expression)
+
+        :pred-expr
+        (let [where (add-predicate scope expression)]
+          (qb/add-where qb where))
+
+        ;; else
+        (e/error-case! clause)))))
 
 
 (defn- discover-db
@@ -355,82 +429,7 @@
                 (vm/bind vm input _p)))))))))
 
 
-(defn- add-pattern
-  [{:as scope :keys [dm]} expression]
-  (let [{:keys [src-var]} expression
-        db (if src-var
-             (dm/get-db! dm src-var)
-             (dm/default-db! dm))]
-    (add-pattern-db db scope expression)))
-
-
-(defn- add-predicate
-  [scope expression]
-
-  (let [{:keys [qb vm sg qp]} scope
-        {:keys [expr]} expression
-        {:keys [pred args]} expr
-
-        [pred-tag pred] pred
-
-        args* (vec
-               (for [arg args]
-                 (let [[tag arg] arg]
-                   (case tag
-
-                     :var
-                     (vm/get-val vm arg)
-
-                     :cst
-                     (let [[tag arg] arg]
-                       (let [param (sg "param")]
-                         (qp/add-param qp param arg)
-                         (sql/param param)))))))
-
-        pred-expr (into [pred] args*)]
-
-    (case pred-tag
-      :sym
-      pred-expr
-      ;; else
-      (e/error-case! pred-tag))))
-
-
-(defn- add-function
-  [{:as scope :keys [qb vm sg qp]}
-   expression]
-
-  (let [{:keys [expr binding]} expression
-        {:keys [fn args]} expr
-
-        args* (for [arg args]
-                (let [[tag arg] arg]
-                  (case tag
-                    :var
-                    (vm/get-val vm arg)
-
-                    :cst
-                    (let [[tag arg] arg]
-                      (let [param (sg "param")]
-                        (qp/add-param qp param arg)
-                        (sql/param param))))))
-
-        [fn-tag fn] fn
-        [bind-tag binding] binding
-
-        fn-expr
-        (case fn-tag
-          :sym
-          (apply sql/call fn args*))]
-
-    (case bind-tag
-      :bind-scalar
-      (vm/bind vm binding fn-expr)))
-
-  nil)
-
-
-(defn split-rule-vars
+(defn- split-rule-vars
   [rule-vars]
   (let [var-map (apply hash-map rule-vars)
         {:keys [vars* vars]} var-map
@@ -442,16 +441,6 @@
        [var false])
      (for [var vars]
        [var false]))))
-
-
-;; define that func in advance
-(declare process-clauses)
-
-
-;; TODO drop it
-(def RULES
-  #_
-  (group-rules rules))
 
 
 (defn- add-rule
@@ -466,7 +455,7 @@
                        :var var)))
 
 
-        rule (get RULES rule-name)
+        rule (get :TODO rule-name)
 
         _ (when-not rule
             (e/error! "Cannot resolve a rule %s" rule-name))
@@ -504,52 +493,6 @@
     (vm/consume vm-dst vm-src)
 
     (join-and result)))
-
-
-(defn process-bool-expr
-  [scope
-   expression]
-
-  (let [{:keys [op clauses]} expression]
-    (join-op op (doall (for [[tag expression] clauses]
-                        (case tag
-
-                          :pred-expr
-                          (add-predicate scope expression)
-
-                          :bool-expr
-                          (process-bool-expr scope expression)))))))
-
-
-(defn- process-clauses
-  [{:as scope :keys [qb]}
-   clauses]
-
-  (doseq [clause clauses]
-
-    (let [[tag expression] clause]
-
-      (case tag
-
-        :data-pattern
-        (add-pattern scope expression)
-
-        :bool-expr
-        (let [where (process-bool-expr scope expression)]
-          (qb/add-where qb where))
-
-        ;; :rule-expr
-        ;; (add-rule scope expression)
-
-        :fn-expr
-        (add-function scope expression)
-
-        :pred-expr
-        (let [where (add-predicate scope expression)]
-          (qb/add-where qb where))
-
-        ;; else
-        (e/error-case! clause)))))
 
 
 (defn- process-where
