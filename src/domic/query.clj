@@ -237,6 +237,7 @@
                 (qb/add-where qb-sub [:= alias-fq val])
 
                 (when-let [src (-> val meta :src)]
+                  (qb/add-where qb [:= alias-sub-field val])
                   (qb/add-from? qb-sub src)
                   (qb/add-from? qb alias-sub)))
 

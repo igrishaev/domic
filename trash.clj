@@ -930,3 +930,12 @@ and
               (domic.db/pg)
               _rules
               )
+
+
+-                  (if *nested?*
+-                    (conj! wheres* [:= alias-sub-field val])
+-                    (qb/add-where qb [:= alias-sub-field val]))
+
+
+-      (when *nested?*
+-        (join-and (persistent! wheres*)))))
