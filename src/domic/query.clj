@@ -370,6 +370,8 @@
   [{:as scope :keys [sg qb vm]}
    input param]
 
+  (println "--rel" input param)
+
   (let [[input] input
         alias-coll (sg "data")
         alias-fields (for [_ input] (sg "f"))
@@ -392,6 +394,8 @@
   [{:as scope :keys [sg qb vm]}
    input param]
 
+  (println "--coll" input param)
+
   (let [{:keys [var]} input
         alias-coll (sg "coll")
         alias-field (sg "field")
@@ -404,32 +408,28 @@
 
 
 (defn- process-binding-tuple
-  [{:as scope :keys [sg qb vm]}
+  [{:as scope :keys [qb qp vm]}
    input param]
 
   (when-not (= (count input)
                (count param))
     (e/error! "Arity mismatch: %s != %s" input param))
 
-  #_
-  (doseq [[input param-el] (u/zip input param)]
+  (doseq [[input param] (u/zip input param)]
     (let [[tag input] input]
       (case tag
+        :unused nil
         :var
-        (vm/bind vm input param
-                 :in input-src (type param-el))))))
+        (let [p (qp/add-alias qp param)]
+          (vm/bind vm input p))))))
 
 
-(defn process-binding-scalar
-  [{:as scope :keys [sg qb vm qp]}
+(defn- process-binding-scalar
+  [{:as scope :keys [qb vm qp]}
    input param]
-  (let [value (if (h/lookup? param)
-                    (resolve-lookup! scope param)
-                    param)]
-        (let [_a (sg (name input))
-              _p (sql/param _a)]
-          (qp/add-param qp _a value)
-          (vm/bind vm input _p))))
+
+  (let [p (qp/add-alias qp param)]
+    (vm/bind vm input p)))
 
 
 (defn- process-binding-var

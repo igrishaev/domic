@@ -1004,3 +1004,47 @@ and
            (let [{:keys [alias fields data]} db
                  with [[alias {:columns fields}] {:values data}]]
 (qb/add-with qb with)))
+
+
+
+(q _scope '[:find ?a ?b ?c ?name
+            :in $data
+            :where
+            [$data ?a ?b ?c]
+            [$ ?a :artist/name ?name]
+            ]
+     [[49 1 2]
+]
+
+)
+
+
+
+
+
+;; tuple
+           (q _scope '[:find ?attr
+                       :in [?a _ ?name]
+                       :where
+                       [?a ?attr ?name]
+                       ]
+              [199 "foo" "Queen"]
+              )
+
+;; scalar
+           (q _scope '[:find ?attr
+                       :in ?a
+                       :where
+                       [?a ?attr ?name]
+                       ]
+              199
+              )
+
+
+(let [value (if (h/lookup? param)
+                (resolve-lookup! scope param)
+                param)]
+    (let [_a (sg (name input))
+          _p (sql/param _a)]
+      (qp/add-param qp _a value)
+      (vm/bind vm input _p)))
