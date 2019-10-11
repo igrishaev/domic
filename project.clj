@@ -16,6 +16,8 @@
 
    :dev {:dependencies
          [[org.clojure/clojure "1.10.0"]
+          [clj-http "3.10.0"]
+          [cheshire "5.9.0"]
           [org.postgresql/postgresql "42.1.3"]
           [com.datomic/datomic-free "0.9.5697"]]}}
 

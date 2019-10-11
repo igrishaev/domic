@@ -1,7 +1,10 @@
 (ns domic.query-builder
   (:refer-clojure :exclude [format])
   (:require
-   [clojure.pprint :refer [pprint]]
+   [domic.query-formatter :as qf]
+
+   [clojure.pprint :as pprint]
+
    [honeysql.helpers :as h]
    [honeysql.core :as sql]))
 
@@ -17,6 +20,8 @@
   (last-column-index [this])
 
   (debug [this] [this params])
+
+  (pprint [this params])
 
   (set-limit [this limit])
 
@@ -69,8 +74,12 @@
     (debug this {}))
 
   (debug [this params]
-    (pprint (->map this))
-    (println (format this params)))
+    (pprint/pprint (->map this)))
+
+  (pprint [this params]
+    (let [[query & args] (format this params)]
+      (println (qf/format-query query))
+      (println args)))
 
   (set-distinct [this]
     (swap! sql h/merge-modifiers :distinct))

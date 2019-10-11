@@ -1,7 +1,7 @@
 (ns domic.var-manager
   (:refer-clojure :exclude [bound?])
   (:require
-   [domic.error :refer [error!]]))
+   [domic.error :as e]))
 
 ;; todo
 ;; extend print
@@ -42,16 +42,16 @@
   (get-val [this var]
     (if (bound? this var)
       (get @vars var)
-      (error! "Var %s is unbound" var)))
+      (e/error! "Var %s is unbound" var)))
 
   (bind [this var val]
 
     (when *read-only*
-      (error! "Binding %s to %s is not allowed here"
+      (e/error! "Binding %s to %s is not allowed here"
               var val))
 
     (if (bound? this var)
-      (error! "Var %s is already bound" var)
+      (e/error! "Var %s is already bound" var)
       (swap! vars assoc var val)))
 
   (bound? [this var]

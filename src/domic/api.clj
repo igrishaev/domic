@@ -10,9 +10,10 @@
 
 
 (defn ->scope
-  [db-spec & [{:keys [table prefix]
+  [db-spec & [{:keys [table prefix debug?]
                :or {table :datoms
-                    prefix ""}}]]
+                    prefix ""
+                    debug? false}}]]
 
   (let [table*    (str prefix (name table))
         table-log (str table* "_log")
@@ -23,6 +24,7 @@
 
     {:en en
      :am am
+     :debug?    debug?
      :table     (keyword table*)
      :table-log (keyword table-log)
      :table-seq (keyword table-seq)}))
@@ -82,7 +84,9 @@
       :password "ivan"
       :assumeMinServerVersion "10"}
 
-     {:prefix "__test_"}
+     {:prefix "__test_"
+      :debug? true
+      }
 
      ))
 

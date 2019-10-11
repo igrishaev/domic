@@ -28,9 +28,7 @@
 ;; todo
 
 ;; fix find tupe
-;; better query debug
 
-;; debug flag?
 ;; process with
 ;; process maps
 ;; deal with pull pattern
@@ -710,7 +708,8 @@
 
 
 (defn- q-internal
-  [{:as scope :keys [table
+  [{:as scope :keys [debug?
+                     table
                      en am]}
    query-parsed
    & query-inputs]
@@ -746,8 +745,9 @@
 
     (qb/set-distinct qb)
 
-    ;; todo
-    (qb/debug qb @qp)
+    (when debug?
+      (qb/debug qb @qp)
+      (qb/pprint qb @qp))
 
     (as-> (qb/format qb @qp) $
       (process-arrays scope $)
