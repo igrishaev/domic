@@ -6,7 +6,6 @@
    [domic.const :as const]
    [domic.pull :as pull]
    [domic.sql-helpers :as h]
-   [domic.runtime :refer [resolve-lookup!]]
    [domic.rule-manager :as rm]
    [domic.error :as e]
    [domic.var-manager :as vm]
@@ -28,8 +27,8 @@
 
 ;; todo
 
-;; unify with-meta
 ;; fix find tupe
+;; better query debug
 
 ;; debug flag?
 ;; process with
@@ -48,16 +47,6 @@
 ;; untuple
 
 ;; rest of aggregates
-
-
-(def query
-  '
-
-  [:find ?a ?c
-   :in $xs $ys
-   :where (or-join [?a ?c]
-                   [$xs ?a ?b ?c]
-                   [$ys ?a ?c])])
 
 
 (declare process-clauses)
@@ -180,6 +169,13 @@
             elem))))))
 
 
+(defn with-source
+  [obj source]
+  (let [obj* (if (keyword? obj)
+               (sql/inline obj) obj)]
+    (with-meta obj* {:src source})))
+
+
 (defprotocol ISourceActions
 
   (add-pattern-db [src scope expression]))
@@ -227,8 +223,7 @@
                          sql))
 
               alias-sub-field (-> (sql/qualify alias-sub field)
-                                  (sql/inline)
-                                  (->cast))
+                                  (with-source alias-sub))
 
               alias-fq (-> (sql/qualify alias-table field)
                            (->cast))]
@@ -256,9 +251,7 @@
                   (qb/add-from? qb alias-sub)
                   (qb/add-from? qb src)))
 
-              (vm/bind vm elem
-                       (-> alias-sub-field
-                           (with-meta {:src alias-sub}))))
+              (vm/bind vm elem alias-sub-field))
 
             :blank nil
 
@@ -286,8 +279,7 @@
         (let [[tag elem] elem*
 
               alias-fq (-> (sql/qualify alias-sub field)
-                           (sql/inline)
-                           (with-meta {:src alias-sub}))]
+                           (with-source alias-sub))]
 
           (case tag
 
@@ -384,8 +376,7 @@
           :unused nil
           :var
           (let [field-fq (-> (sql/qualify alias-sub field)
-                             (sql/inline)
-                             (with-meta {:src alias-sub}))]
+                             (with-source alias-sub))]
             (vm/bind vm var field-fq)))))
 
     nil))
@@ -408,8 +399,7 @@
       (doseq [[var field] (u/zip vars fields)]
 
         (let [field-fq (-> (sql/qualify alias-sub field)
-                           (sql/inline)
-                           (with-meta {:src alias-sub}))]
+                           (with-source alias-sub))]
 
           (vm/bind vm var field-fq))))
 
@@ -756,6 +746,7 @@
 
     (qb/set-distinct qb)
 
+    ;; todo
     (qb/debug qb @qp)
 
     (as-> (qb/format qb @qp) $

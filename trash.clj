@@ -1059,3 +1059,9 @@ and
                        ]
               [49 199]
               )
+
+
+
+(if (instance? clojure.lang.IObj obj)
+    (with-meta obj {:src source})
+    obj)
