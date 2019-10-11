@@ -1,17 +1,17 @@
 (ns domic.query-formatter
   (:require
-   [domic.error :as e]))
+   [domic.error :as e])
+  (:import
+   clojure.lang.Reflector))
 
-;; todo
-;; make reflection clearer
-;; type hints
 
-(defonce hb?
+(defonce
+  formatter
   (try
     (import 'org.hibernate.engine.jdbc.internal.BasicFormatterImpl)
-    true
-    (catch Exception e
-      false)))
+    (-> (resolve 'BasicFormatterImpl)
+        (Reflector/invokeConstructor (make-array Object 0)))
+    (catch Exception e)))
 
 
 (def hb-package
@@ -35,11 +35,10 @@
 (defn format-query
   [^String query]
 
-  (if hb?
+  (if formatter
 
-    (-> (resolve 'BasicFormatterImpl)
-        (clojure.lang.Reflector/invokeConstructor (make-array Object 0))
-        (.format ^String query))
+    (Reflector/invokeInstanceMethod
+     formatter "format" (into-array String [query]))
 
     (e/error!
      (str "Warning: to format SQL queries, you've got to "
