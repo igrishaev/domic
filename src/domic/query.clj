@@ -186,8 +186,6 @@
 
           {:keys [elems]} expression
 
-          wheres* (transient [])
-
           alias-sub (sg "sub")
           alias-table :d
 
@@ -259,34 +257,34 @@
 
   Dataset
 
-  (add-pattern-db [db scope expression]
-    nil)
-
-  #_
-  (add-pattern-db [db scope expression]
+  (add-pattern-db [src scope expression]
 
     (let [{:keys [qb sg vm]} scope
-          {:keys [alias fields]} db
-          {:keys [elems]} expression
-          alias-layer (sg "layer")
 
-          where* (transient [])]
+          {:keys [elems]} expression
+          alias-sub (src/get-alias src)
+          fields (src/get-fields src)]
+
+      (qb/add-from? qb alias-sub)
 
       (doseq [[elem* field] (u/zip elems fields)]
         (let [[tag elem] elem*
-              alias-fq (sql/qualify alias-layer field)]
+
+              alias-fq (-> (sql/qualify alias-sub field)
+                           (sql/inline)
+                           (with-meta {:src alias-sub}))]
 
           (case tag
 
             :cst
             (let [[tag v] elem]
               (let [where [:= alias-fq v]]
-                (conj! where* where)))
+                (qb/add-where qb where)))
 
             :var
             (if (vm/bound? vm elem)
               (let [where [:= alias-fq (vm/get-val vm elem)]]
-                (conj! where* where))
+                (qb/add-where qb where))
               (vm/bind vm elem alias-fq))
 
             :blank nil
