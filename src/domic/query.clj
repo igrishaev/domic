@@ -28,6 +28,9 @@
 ;; todo
 ;; unify databases (rename to table/dataset)
 ;; cast datasets to params
+;; const module
+
+;; unify with-meta
 
 ;; debug flag?
 ;; process with
@@ -246,12 +249,14 @@
             (if (vm/bound? vm elem)
 
               (let [val (vm/get-val vm elem)]
+
                 (qb/add-where qb-sub [:= alias-fq val])
 
                 (when-let [src (-> val meta :src)]
                   (qb/add-where qb [:= alias-sub-field val])
                   (qb/add-from? qb-sub src)
-                  (qb/add-from? qb alias-sub)))
+                  (qb/add-from? qb alias-sub)
+                  (qb/add-from? qb src)))
 
               (vm/bind vm elem
                        (-> alias-sub-field
@@ -328,9 +333,9 @@
 
 (defn- add-dataset
   [{:as scope :keys [qb qp]}
-   src values]
-  (let [alias (src/get-alias src)
-        fields (src/get-fields src)
+   dataset values]
+  (let [alias (src/get-alias dataset)
+        fields (src/get-fields dataset)
         values* (mapv (fn [row]
                         (mapv (fn [value]
                                 (qp/add-alias qp value))
@@ -355,7 +360,7 @@
     (sm/add-source sm src-var source)
 
     (map? source)
-    (e/error! "Maps datasets are not supported, use vectors")
+    (e/error! "Maps datasets are not supported, use vectors instead")
 
     (coll? source)
     (let [dataset (->dataset scope source)]
@@ -368,43 +373,54 @@
 
 (defn- process-binding-rel
   [{:as scope :keys [sg qb vm]}
-   input param]
+   input values]
 
-  (println "--rel" input param)
+  (println "--rel" input values)
 
   (let [[input] input
-        alias-coll (sg "data")
-        alias-fields (for [_ input] (sg "f"))
-        alias-full (h/as-fields alias-coll alias-fields)
-        from [{:values param} alias-full]]
+        dataset (->dataset scope values)]
 
-    (qb/add-from qb from)
+    (add-dataset scope dataset values)
 
-    (doseq [[input alias-field]
-            (u/zip input alias-fields)]
-      (let [[tag input] input
-            alias-fq (sql/qualify alias-coll alias-field)]
+    (let [alias-sub (src/get-alias dataset)
+          fields (src/get-fields dataset)]
+
+      (doseq [[[tag var] field] (u/zip input fields)]
+
         (case tag
           :unused nil
           :var
-          (vm/bind vm input alias-fq))))))
+          (let [field-fq (-> (sql/qualify alias-sub field)
+                             (sql/inline)
+                             (with-meta {:src alias-sub}))]
+            (vm/bind vm var field-fq)))))
+
+    nil))
 
 
 (defn- process-binding-coll
   [{:as scope :keys [sg qb vm]}
-   input param]
+   input values]
 
-  (println "--coll" input param)
+  (let [values* (mapv vector values)
+        dataset (->dataset scope values*)]
 
-  (let [{:keys [var]} input
-        alias-coll (sg "coll")
-        alias-field (sg "field")
-        alias-full (h/as-field alias-coll alias-field)
-        field (sql/qualify alias-coll alias-field)
-        values {:values (mapv vector param)}
-        from [values alias-full]]
-    (vm/bind vm var field)
-    (qb/add-from qb from)))
+    (add-dataset scope dataset values*)
+
+    (let [{:keys [var]} input
+          vars [var]
+          alias-sub (src/get-alias dataset)
+          fields (src/get-fields dataset)]
+
+      (doseq [[var field] (u/zip vars fields)]
+
+        (let [field-fq (-> (sql/qualify alias-sub field)
+                           (sql/inline)
+                           (with-meta {:src alias-sub}))]
+
+          (vm/bind vm var field-fq))))
+
+    nil))
 
 
 (defn- process-binding-tuple

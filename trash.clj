@@ -1048,3 +1048,14 @@ and
           _p (sql/param _a)]
       (qp/add-param qp _a value)
       (vm/bind vm input _p)))
+
+
+
+;; coll
+           (q _scope '[:find ?name
+                       :in [?a ...]
+                       :where
+                       [?a :artist/name ?name]
+                       ]
+              [49 199]
+              )
