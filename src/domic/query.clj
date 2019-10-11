@@ -314,10 +314,6 @@
   [{:as scope :keys [sm]} expression]
   (let [{:keys [src-var]} expression
         src (sm/get-source sm (or src-var SRC-DEFAULT))]
-
-    ;; todo
-    ;; (println "---" expression src-var src)
-
     (add-pattern-db src scope expression)))
 
 
@@ -344,6 +340,122 @@
     (qb/add-with qb with)))
 
 
+(defn- process-rules-var
+  [{:as scope :keys [rm]}
+   rules]
+  (let [rule-map (group-rules rules)]
+    (rm/set-rules rm rule-map)))
+
+
+(defn- process-src-var
+  [{:as scope :keys [sm]}
+   src-var source]
+  (cond
+    (src/table? source)
+    (sm/add-source sm src-var source)
+
+    (map? source)
+    (e/error! "Maps datasets are not supported, use vectors")
+
+    (coll? source)
+    (let [dataset (->dataset scope source)]
+      (sm/add-source sm src-var dataset)
+      (add-dataset scope dataset source))
+
+    :else
+    (e/error-case! source)))
+
+
+(defn- process-binding-rel
+  [{:as scope :keys [sg qb vm]}
+   input param]
+
+  (let [[input] input
+        alias-coll (sg "data")
+        alias-fields (for [_ input] (sg "f"))
+        alias-full (h/as-fields alias-coll alias-fields)
+        from [{:values param} alias-full]]
+
+    (qb/add-from qb from)
+
+    (doseq [[input alias-field]
+            (u/zip input alias-fields)]
+      (let [[tag input] input
+            alias-fq (sql/qualify alias-coll alias-field)]
+        (case tag
+          :unused nil
+          :var
+          (vm/bind vm input alias-fq))))))
+
+
+(defn- process-binding-coll
+  [{:as scope :keys [sg qb vm]}
+   input param]
+
+  (let [{:keys [var]} input
+        alias-coll (sg "coll")
+        alias-field (sg "field")
+        alias-full (h/as-field alias-coll alias-field)
+        field (sql/qualify alias-coll alias-field)
+        values {:values (mapv vector param)}
+        from [values alias-full]]
+    (vm/bind vm var field)
+    (qb/add-from qb from)))
+
+
+(defn- process-binding-tuple
+  [{:as scope :keys [sg qb vm]}
+   input param]
+
+  (when-not (= (count input)
+               (count param))
+    (e/error! "Arity mismatch: %s != %s" input param))
+
+  #_
+  (doseq [[input param-el] (u/zip input param)]
+    (let [[tag input] input]
+      (case tag
+        :var
+        (vm/bind vm input param
+                 :in input-src (type param-el))))))
+
+
+(defn process-binding-scalar
+  [{:as scope :keys [sg qb vm qp]}
+   input param]
+  (let [value (if (h/lookup? param)
+                    (resolve-lookup! scope param)
+                    param)]
+        (let [_a (sg (name input))
+              _p (sql/param _a)]
+          (qp/add-param qp _a value)
+          (vm/bind vm input _p))))
+
+
+(defn- process-binding-var
+  [{:as scope :keys [qb qp sg]}
+   input* param]
+
+  (let [[tag input] input*]
+
+    (case tag
+
+      :bind-rel
+      (process-binding-rel scope input param)
+
+      :bind-coll
+      (process-binding-coll scope input param)
+
+      :bind-tuple
+      (process-binding-tuple scope input param)
+
+      :bind-scalar
+      (process-binding-scalar scope input param)
+
+      ;; else
+      (e/error-case! input*))))
+
+
 (defn- process-in
   [{:as scope :keys [vm qb dm sg qp rm sm]}
    inputs params]
@@ -360,23 +472,15 @@
       (case tag
 
         :rules-var
-        (let [rule-map (group-rules param)]
-          (rm/set-rules rm rule-map))
+        (process-rules-var scope param)
 
         :src-var
-        (cond
-          (src/table? param)
-          (sm/add-source sm input param)
-
-          (vector? param)
-          (let [dataset (->dataset scope param)]
-            (sm/add-source sm input dataset)
-            (add-dataset scope dataset param))
-
-          :else
-          (e/error-case! param))
+        (process-src-var scope input param)
 
         :binding
+        (process-binding-var scope input param)
+
+        #_
         (let [[tag input] input]
           (case tag
 
