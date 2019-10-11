@@ -20,9 +20,6 @@
 ;; process functions
 
 
-
-
-
 (defn collect-temp-ids
   [{:as scope :keys [am]}
    datoms]

@@ -3,6 +3,7 @@
   (:require
    [clojure.spec.alpha :as s]
 
+   [domic.const :as const]
    [domic.pull :as pull]
    [domic.sql-helpers :as h]
    [domic.runtime :refer [resolve-lookup!]]
@@ -26,16 +27,13 @@
 
 
 ;; todo
-;; unify databases (rename to table/dataset)
-;; cast datasets to params
-;; const module
 
 ;; unify with-meta
+;; fix find tupe
 
 ;; debug flag?
 ;; process with
 ;; process maps
-;; fix tuple binding
 ;; deal with pull pattern
 ;; detect idents
 
@@ -312,13 +310,10 @@
       nil)))
 
 
-(def SRC-DEFAULT '$)
-
-
 (defn- add-pattern
   [{:as scope :keys [sm]} expression]
   (let [{:keys [src-var]} expression
-        src (sm/get-source sm (or src-var SRC-DEFAULT))]
+        src (sm/get-source sm (or src-var const/src-default))]
     (add-pattern-db src scope expression)))
 
 
@@ -374,8 +369,6 @@
 (defn- process-binding-rel
   [{:as scope :keys [sg qb vm]}
    input values]
-
-  (println "--rel" input values)
 
   (let [[input] input
         dataset (->dataset scope values)]
@@ -750,7 +743,7 @@
 
         find-type (get-find-type spec)]
 
-    (sm/add-source sm SRC-DEFAULT (src/table table))
+    (sm/add-source sm const/src-default (src/table table))
 
     (case find-type
       :scalar
