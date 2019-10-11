@@ -462,12 +462,13 @@
 
   (let [n-inputs (count inputs)
         n-params (count params)]
+
     (when-not (= n-inputs n-params)
       (e/error! "Arity mismatch: %s input(s) and %s param(s)"
                 n-inputs n-params)))
 
-  (doseq [[input param] (u/zip inputs params)]
-    (let [[tag input] input]
+  (doseq [[input* param] (u/zip inputs params)]
+    (let [[tag input] input*]
 
       (case tag
 
@@ -480,61 +481,8 @@
         :binding
         (process-binding-var scope input param)
 
-        #_
-        (let [[tag input] input]
-          (case tag
-
-            :bind-rel
-            (let [[input] input
-                  alias-coll (sg "data")
-                  alias-fields (for [_ input] (sg "f"))
-                  alias-full (h/as-fields alias-coll alias-fields)
-                  from [{:values param} alias-full]]
-
-              (qb/add-from qb from)
-
-              (doseq [[input alias-field]
-                      (u/zip input alias-fields)]
-                (let [[tag input] input
-                      alias-fq (sql/qualify alias-coll alias-field)]
-                  (case tag
-                    :unused nil
-                    :var
-                    (vm/bind vm input alias-fq)))))
-
-            :bind-coll
-            (let [{:keys [var]} input
-                  alias-coll (sg "coll")
-                  alias-field (sg "field")
-                  alias-full (h/as-field alias-coll alias-field)
-                  field (sql/qualify alias-coll alias-field)
-                  values {:values (mapv vector param)}
-                  from [values alias-full]]
-              (vm/bind vm var field)
-              (qb/add-from qb from))
-
-            :bind-tuple nil ;; bug in datomic spec
-            #_
-            (do
-              (when-not (= (count input)
-                           (count param))
-                (e/error! "Arity mismatch: %s != %s" input param))
-
-              (doseq [[input param-el] (u/zip input param)]
-                (let [[tag input] input]
-                  (case tag
-                    :var
-                    (vm/bind vm input param
-                             :in input-src (type param-el))))))
-
-            :bind-scalar
-            (let [value (if (h/lookup? param)
-                          (resolve-lookup! scope param)
-                          param)]
-              (let [_a (sg (name input))
-                    _p (sql/param _a)]
-                (qp/add-param qp _a value)
-                (vm/bind vm input _p)))))))))
+        ;; else
+        (e/error-case! input*)))))
 
 
 (defn- split-rule-vars
