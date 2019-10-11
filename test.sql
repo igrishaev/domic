@@ -1245,12 +1245,18 @@ left join sub3 on sub3.e = CAST(s1.v AS bigint)
 WITH sub1 AS (SELECT DISTINCT d.e, d.a, d.v, d.t FROM __test_datoms d WHERE d.a = 'release/artist' ), sub2 AS (SELECT DISTINCT d.e, d.a, d.v, d.t FROM __test_datoms d, sub1 WHERE (d.e = sub1.e AND d.a = 'release/year') ), sub3 AS (SELECT DISTINCT d.e, d.a, d.v, d.t FROM __test_datoms d, sub1 WHERE ((d.e = CAST(sub1.v AS bigint) AND d.a = 'artist/name') AND d.v = 'AAA') ) SELECT DISTINCT * FROM sub1 s1 ,sub2 left join sub3 on sub3.e = CAST(s1.v AS bigint) ;
 
 
-
-
-
-
-
-
+    WITH sub1 AS (SELECT
+        DISTINCT d.e,
+        d.a,
+        d.v,
+        d.t
+    FROM
+        _tests_datoms d
+    WHERE
+        d.a = 'artist/name' ) SELECT
+        DISTINCT sub1.v AS f1
+    FROM
+        sub1 ;
 
 
 
