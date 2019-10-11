@@ -36,6 +36,18 @@
 ;; deal with pull pattern
 ;; detect idents
 
+;; get-else
+;; get-some
+;; ground
+;; fulltext
+;; missing?
+;; tuple
+;; tx-ids
+;; tx-data
+;; untuple
+
+;; rest of aggregates
+
 
 (def query
   '
