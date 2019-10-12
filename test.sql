@@ -1301,8 +1301,39 @@ WITH sub1 AS (SELECT DISTINCT d.e, d.a, d.v, d.t FROM __test_datoms d WHERE d.a 
 
 
 
-
-
+WITH "sub1" AS
+  (SELECT DISTINCT "d"."e",
+                   "d"."a",
+                   "d"."v",
+                   "d"."t"
+   FROM "_tests10_datoms" "d"
+   WHERE "d"."a" = 'band/name' ),
+     "sub2" AS
+  (SELECT DISTINCT "d"."e",
+                   "d"."a",
+                   "d"."v",
+                   "d"."t"
+   FROM "_tests10_datoms" "d",
+        "sub1"
+   WHERE ("d"."e" = sub1.e
+          AND "d"."a" = 'band/members') ),
+     "sub3" AS
+  (SELECT DISTINCT "d"."e",
+                   "d"."a",
+                   "d"."v",
+                   "d"."t"
+   FROM "_tests10_datoms" "d",
+        "sub2"
+   WHERE (("d"."e" = CAST("sub2"."v" AS bigint)
+           AND "d"."a" = 'person/gender')
+          AND CAST("d"."v" AS bigint) = 'gender/female') )
+SELECT DISTINCT sub1.v AS "f1"
+FROM "sub1",
+     "sub2",
+     "sub3"
+WHERE (sub2.e = sub1.e
+       AND sub3.e = CAST("sub2"."v" AS bigint))
+;
 
 
 

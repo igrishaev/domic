@@ -1120,3 +1120,22 @@ song date band label rating
 
 label
 name site country
+
+
+
+(case tag
+                :kw
+                (let [where [:= alias-fq
+                             (sql/build
+                              :select :e
+                              :from table
+                              :where [:and
+                                      [:= :a (add-param :db/ident)]
+                                      [:= :v (add-param v)]]
+                              :limit (sql/inline 1))]]
+                  (qb/add-where qb-sub where))
+
+                ;; else
+                (let [param (qp/add-alias qb v)
+                      where [:= alias-fq param]]
+                  (qb/add-where qb-sub where)))

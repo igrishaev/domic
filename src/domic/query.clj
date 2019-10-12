@@ -188,6 +188,8 @@
     (let [{:keys [table
                   qb sg vm qp am]} scope
 
+          add-param (partial qp/add-alias qp)
+
           alias (src/get-alias src)
           fields (src/get-fields src)
 
@@ -231,10 +233,8 @@
 
             :cst
             (let [[tag v] elem]
-              (let [alias-v (sg "v")
-                    param (sql/param alias-v)
+              (let [param (add-param v)
                     where [:= alias-fq param]]
-                (qp/add-param qp alias-v v)
                 (qb/add-where qb-sub where)))
 
             :var
