@@ -12,8 +12,9 @@
 
 (def attrs
 
-  [ ;; countries
+  [;; countries
    {:db/ident       :country/england}
+   {:db/ident       :country/sweden}
 
    ;; gender
    {:db/ident       :gender/male}
@@ -94,7 +95,7 @@
 
 (def data
 
-  [
+  [;; Queen
 
    {:db/id "Brian May"
     :person/full-name "Brian May"
@@ -124,7 +125,39 @@
     :band/members ["Brian May"
                    "Roger Taylor"
                    "Freddie Mercury"
-                   "John Deacon"]}])
+                   "John Deacon"]}
+
+   ;; Abba
+
+   {:db/id "Benny Andersson"
+    :person/full-name "Benny Andersson"
+    :person/date-born #inst "1946-12-16"
+    :person/gender :gender/male}
+
+   {:db/id "Anni-Frid Lyngstad"
+    :person/full-name "Anni-Frid Lyngstad"
+    :person/date-born #inst "1945-11-15"
+    :person/gender :gender/female}
+
+   {:db/id "Agnetha Fältskog"
+    :person/full-name "Agnetha Fältskog"
+    :person/nick-name "Anna"
+    :person/date-born #inst "1950-04-05"
+    :person/gender :gender/female}
+
+   {:db/id "Björn Ulvaeus"
+    :person/full-name "Björn Ulvaeus"
+    :person/date-born #inst "1945-04-25"
+    :person/gender :gender/male}
+
+   {:band/name "ABBA"
+    :band/country :country/sweden
+    :band/website "https://abbasite.com/"
+    :band/date-from #inst "1972"
+    :band/members ["Benny Andersson"
+                   "Anni-Frid Lyngstad"
+                   "Agnetha Fältskog"
+                   "Björn Ulvaeus"]}])
 
 
 (def ^:dynamic *scope* nil)
@@ -140,7 +173,7 @@
 
 (defn fix-test-db [t]
 
-  (let [opt {:prefix "_tests9_"
+  (let [opt {:prefix "_tests10_"
              :debug? true}]
 
     (binding [*scope* (api/->scope db-spec opt)]
@@ -168,33 +201,34 @@
 (use-fixtures :once fix-test-db)
 
 
-(deftest test-simple
+(deftest test-primitive
 
   (let [query '[:find [?name ...]
-                :in ?test
                 :where
                 [?a :band/name ?name]]
+        result (api/q *scope* query)]
 
-        result (api/q *scope* query "test")]
-
-    (is (= (sort result) '("Queen")))))
+    (is (= (sort result) '("ABBA" "Queen")))))
 
 
-(deftest test-simple2
+(deftest test-simple-join
 
   (let [query '[:find ?band-name ?person-name
-                :in ?test
                 :where
                 [?person :person/full-name ?person-name]
                 [?band :band/members ?person]
-                [?band :band/name ?band-name]
-                ]
+                [?band :band/name ?band-name]]
 
-        result (api/q *scope* query "test")]
+        result (api/q *scope* query)]
 
-    (is (= (sort
-            [["Queen" "Roger Taylor"]
-             ["Queen" "Brian May"]
-             ["Queen" "John Deacon"]
-             ["Queen" "Freddie Mercury"]])
-           (sort result)))))
+    (is (=
+         (sort result)
+         '
+         (["ABBA" "Agnetha Fältskog"]
+          ["ABBA" "Anni-Frid Lyngstad"]
+          ["ABBA" "Benny Andersson"]
+          ["ABBA" "Björn Ulvaeus"]
+          ["Queen" "Brian May"]
+          ["Queen" "Freddie Mercury"]
+          ["Queen" "John Deacon"]
+          ["Queen" "Roger Taylor"])))))
