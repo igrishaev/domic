@@ -8,7 +8,6 @@
 ;; todo
 ;; global test transaction
 ;; deal with prefix name
-;; drop empty in clause
 
 (def attrs
 
@@ -122,6 +121,7 @@
     :band/country :country/england
     :band/website "http://queenonline.com/"
     :band/date-from #inst "1970"
+    :band/genres ["rock" "rock'n'roll"]
     :band/members ["Brian May"
                    "Roger Taylor"
                    "Freddie Mercury"
@@ -154,6 +154,7 @@
     :band/country :country/sweden
     :band/website "https://abbasite.com/"
     :band/date-from #inst "1972"
+    :band/genres ["pop" "disco"]
     :band/members ["Benny Andersson"
                    "Anni-Frid Lyngstad"
                    "Agnetha Fältskog"
@@ -173,7 +174,7 @@
 
 (defn fix-test-db [t]
 
-  (let [opt {:prefix "_tests13_"
+  (let [opt {:prefix "_tests14_"
              :debug? true}]
 
     (binding [*scope* (api/->scope db-spec opt)]
@@ -257,3 +258,24 @@
          Exception #"Lookup failed"
 
          (api/q *scope* query)))))
+
+
+(deftest test-find-by-multiple-tag
+
+  (let [query '[:find [?band-name ...]
+                :in [?genre ...]
+                :where
+                [?band :band/genres ?genre]
+                [?band :band/name ?band-name]]]
+
+    (doseq [[genres result]
+            [[["rock" "disco"]       ["ABBA" "Queen"]]
+             [["dunno" "disco"]      ["ABBA"]]
+             [["rock" "dunno"]       ["Queen"]]
+             [["Rock" "disco"]       ["ABBA"]]
+             [["rock" "Disco"]       ["Queen"]]
+             [[" rock " "\ndisco\t"] []]
+             [["rock" "disco" "foo"] ["ABBA" "Queen"]]]]
+
+      (let [result* (api/q *scope* query genres)]
+        (is (= (sort result) (sort result*)))))))
