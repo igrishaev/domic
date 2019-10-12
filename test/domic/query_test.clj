@@ -173,7 +173,7 @@
 
 (defn fix-test-db [t]
 
-  (let [opt {:prefix "_tests12_"
+  (let [opt {:prefix "_tests13_"
              :debug? true}]
 
     (binding [*scope* (api/->scope db-spec opt)]
@@ -187,7 +187,6 @@
 
       (t)
 
-      #_
       (let [{:keys [en
                     table
                     table-log
@@ -235,9 +234,9 @@
           ["Queen" "Roger Taylor"])))))
 
 
-(deftest test-simple-param
+(deftest test-simple-ident
 
-  (let [query '[:find ?band-name
+  (let [query '[:find [?band-name ...]
                 :where
                 [?band :band/name ?band-name]
                 [?band :band/members ?person]
@@ -245,4 +244,4 @@
 
         result (api/q *scope* query)]
 
-    (is (= (sort result) '("Abba")))))
+    (is (= (sort result) '("ABBA")))))

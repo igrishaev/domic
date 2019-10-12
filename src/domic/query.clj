@@ -3,6 +3,7 @@
   (:require
    [clojure.spec.alpha :as s]
 
+   [domic.runtime :as rt]
    [domic.const :as const]
    [domic.pull :as pull]
    [domic.sql-helpers :as h]
@@ -233,9 +234,19 @@
 
             :cst
             (let [[tag v] elem]
-              (let [param (add-param v)
-                    where [:= alias-fq param]]
-                (qb/add-where qb-sub where)))
+
+              ;; Special case: when a value is a keyword,
+              ;; treat it like an ident (find by :db/ident).
+              (if (and v? (= tag :kw))
+
+                (let [e* (rt/resolve-lookup! scope [:db/ident v])
+                      where [:= alias-fq e*]]
+                  (qb/add-where qb-sub where))
+
+                ;; Act as usual
+                (let [param (add-param v)
+                      where [:= alias-fq param]]
+                  (qb/add-where qb-sub where))))
 
             :var
             (if (vm/bound? vm elem)
