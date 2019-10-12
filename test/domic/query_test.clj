@@ -234,7 +234,7 @@
           ["Queen" "Roger Taylor"])))))
 
 
-(deftest test-simple-ident
+(deftest test-ident-ok
 
   (let [query '[:find [?band-name ...]
                 :where
@@ -245,3 +245,15 @@
         result (api/q *scope* query)]
 
     (is (= (sort result) '("ABBA")))))
+
+
+(deftest test-ident-missing
+
+  (let [query '[:find [?person ...]
+                :where
+                [?person :person/gender :gender/dunno]]]
+
+    (is (thrown-with-msg?
+         Exception #"Lookup failed"
+
+         (api/q *scope* query)))))
