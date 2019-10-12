@@ -1073,3 +1073,50 @@ and
 
 (println (.format (new BasicFormatterImpl) "WITH sub1 AS (SELECT DISTINCT d.e, d.a, d.v, d.t FROM __test_datoms d WHERE d.a = 'release/artist' ), sub2 AS (SELECT DISTINCT d.e, d.a, d.v, d.t FROM __test_datoms d, sub1 WHERE (d.e = sub1.e AND d.a = 'release/year') ), sub3 AS (SELECT DISTINCT d.e, d.a, d.v, d.t FROM __test_datoms d, sub1 WHERE ((d.e = CAST(sub1.v AS bigint) AND d.a = 'artist/name') AND d.v = 'AAA') ) SELECT DISTINCT * FROM sub1 s1 ,sub2 left join sub3 on sub3.e = CAST(s1.v AS bigint) ;
 "))
+
+
+band
+
+
+
+
+
+
+   {:db/ident       :band/name
+    :db/valueType   :db.type/string
+    :db/cardinality :db.cardinality/one
+    :db/unique      :db.unique/identity}
+
+   {:db/ident       :band/country
+    :db/valueType   :db.type/ref
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :band/website
+    :db/valueType   :db.type/uri
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :band/members
+    :db/valueType   :db.type/ref
+    :db/cardinality :db.cardinality/many}
+
+   {:db/ident       :band/date-from
+    :db/valueType   :db.type/instant
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :band/date-to
+    :db/valueType   :db.type/instant
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :band/genres
+    :db/valueType   :db.type/string
+    :db/cardinality :db.cardinality/many}
+
+
+
+
+
+release
+song date band label rating
+
+label
+name site country

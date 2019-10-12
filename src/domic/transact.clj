@@ -1,5 +1,6 @@
 (ns domic.transact
   (:require
+   [domic.const :as const]
    [domic.sql-helpers :as h]
    [domic.util :as util]
    [domic.runtime :as rt]
@@ -16,20 +17,9 @@
 
 
 ;; todo
+;; retraction
 ;; check history attrib
 ;; process functions
-
-
-(defn collect-temp-ids
-  [{:as scope :keys [am]}
-   datoms]
-  (let [temp-ids* (transient #{})]
-    (doseq [[_ e a v] datoms]
-      (when (h/temp-id? e)
-        (conj! temp-ids* e))
-      (when (and (am/ref? am a) (h/temp-id? v))
-        (conj! temp-ids* v)))
-    (-> temp-ids* persistent! not-empty)))
 
 
 (defn prepare-tx-data
@@ -73,17 +63,22 @@
      :tx-fns (persistent! tx-fns*)}))
 
 
-(defn collect-ident-info
+(defn collect-datoms-info
   [{:as scope :keys [am]}
    datoms]
 
   (let [ids* (transient #{})
-        avs* (transient #{})]
+        avs* (transient #{})
+        tmp* (transient #{})]
 
     (doseq [[_ e a v] datoms]
 
       ;; E
       (cond
+
+        (h/temp-id? e)
+        (conj! tmp* e)
+
         (h/real-id? e)
         (conj! ids* e)
 
@@ -97,6 +92,10 @@
       (when (am/ref? am a)
 
         (cond
+
+          (h/temp-id? v)
+          (conj! tmp* v)
+
           (h/real-id? v)
           (conj! ids* v)
 
@@ -110,7 +109,9 @@
       (when (am/unique? am a)
         (conj! avs* [a v])))
 
-    [(persistent! ids*) (persistent! avs*)]))
+    [(persistent! ids*)
+     (persistent! avs*)
+     (persistent! tmp*)]))
 
 
 (defn pull-idents
@@ -121,7 +122,7 @@
 
 (defn fix-datoms
   [{:as scope :keys [am]}
-   datoms pull]
+   datoms pull fn-id]
 
   (let [pull-es (set (map :e pull))
         pull-av (group-by (juxt :a :v) pull)
@@ -160,6 +161,10 @@
 
                 ;; resolve E
                 e (cond
+
+                    (h/temp-id? e)
+                    (fn-id e)
+
                     (h/real-id? e)
                     (get-e! e)
 
@@ -169,13 +174,18 @@
                     (h/ident-id? e)
                     (get-av! [:db/ident e])
 
-                    :else e)
+                    :else
+                    (e/error! "Wrong e: %s" e))
 
                 ;; resolve V
                 v (cond
 
                     (am/ref? am a)
                     (cond
+
+                      (h/temp-id? v)
+                      (fn-id v)
+
                       (h/real-id? v)
                       (get-e! v)
 
@@ -185,7 +195,9 @@
                       (h/ident-id? v)
                       (get-av! [:db/ident v])
 
-                      :else v)
+                      :else
+                      (e/error! "Wrong v: %s" v))
+
                     :else v)]
 
             (conj! datoms* [op e a v])
@@ -220,7 +232,7 @@
 (defn validate-attrs!
   [{:as scope :keys [am]}
    datoms]
-  (let [attrs (map #(get % 2) datoms)]
+  (let [attrs (mapv #(get % 2) datoms)]
      (am/validate-many! am attrs)))
 
 
@@ -234,36 +246,41 @@
         add-param (partial qp/add-alias qp)
 
         t-inst (new Date)
-        t-id   -1
+        t-id   const/tx-id
 
         to-log*    (transient [])
         to-insert* (transient [])
         to-delete* (transient [])
         to-update* (transient [])
 
-        add-log (fn [row]
-                  (conj! to-log* row))
+        add-log (fn [row] (conj! to-log* row))
 
         {:keys [datoms tx-fns]}
         (prepare-tx-data scope tx-data)
 
-        [ids avs] (collect-ident-info scope datoms)]
+        _ (validate-attrs! scope datoms)
+
+        [ids avs temp-ids] (collect-datoms-info scope datoms)
+
+        t-tmp-id (str (gensym "tx"))
+        temp-ids (conj temp-ids t-tmp-id)]
 
     (en/with-tx [en en]
 
       (let [scope    (assoc scope :en en)
 
-            pull     (pull-idents scope ids avs)
-            _        (validate-attrs! scope datoms)
-            datoms   (fix-datoms scope datoms pull)
-            temp-ids (collect-temp-ids scope datoms)
-            t-tmp-id (str (gensym "tx"))
-            temp-ids (conj temp-ids t-tmp-id)
             -ids-map (rt/allocate-db-ids scope temp-ids)
-            ->db-id  (fn [temp-id]
+            pull     (pull-idents scope ids avs)
+
+            fn-id    (fn [temp-id]
                        (or (get -ids-map temp-id)
-                           (e/error! "Cannot resolve temp-id: %s" temp-id)))
-            t        (->db-id t-tmp-id)
+                           (e/error! "Cannot resolve temp-id: %s"
+                                     temp-id)))
+
+            datoms   (fix-datoms scope datoms pull fn-id)
+
+            t        (fn-id t-tmp-id)
+
             p-ea     (group-by (juxt :e :a) pull)]
 
         ;; process tx functions
@@ -286,7 +303,9 @@
 
           (case op
 
+            #_
             :db/retract
+            #_
             (if (h/real-id? e)
 
               (do
@@ -306,50 +325,52 @@
               (e/error! "Cannot retract entity %s" e))
 
             :db/add
-            (cond
+            (if-let [p* (get p-ea [e a])]
 
-              (h/temp-id? e)
-              (let [row {:e (->db-id e)
+              ;; found in pull
+              (if (am/multiple? am a)
+
+                ;; multiple
+                (if (contains? (mapv :v p*) v)
+
+                  ;; found in set; do nothing
+                  nil
+
+                  ;; not found in set; insert new
+                  (let [row {:e e
+                             :a (add-param a)
+                             :v (add-param v)
+                             :t t}]
+                    (conj! to-insert* row)
+                    (add-log (assoc row :op true))))
+
+                ;; not multiple; update existing
+                (let [[{:keys [id]}] p*]
+                  (conj! to-update* {:id id
+                                     :v (add-param v)
+                                     :t t})
+                  (add-log {:e e
+                            :a (add-param a)
+                            :v (add-param v)
+                            :t t
+                            :op true})))
+
+              ;; not found in pull; insert new
+              (let [row {:e e
                          :a (add-param a)
                          :v (add-param v)
                          :t t}]
                 (conj! to-insert* row)
-                (add-log (assoc row :op true)))
+                (add-log (assoc row :op true))))))
 
-              (h/real-id? e)
-              (let [p* (get p-ea [e a])]
+        ;; insert transaction
+        (let [row {:e t
+                   :a (add-param :db/txInstant)
+                   :v (add-param t-inst)
+                   :t (add-param t-id)}]
+          (conj! to-insert* row))
 
-                (if (am/multiple? am a)
-
-                  (when (or (nil? p*)
-                            (not (contains? (set (map :v p*)) v)))
-                    (let [row {:e e
-                               :a (add-param a)
-                               :v (add-param v)
-                               :t t}]
-                      (conj! to-insert* row)
-                      (add-log (assoc row :op true))))
-
-                  (if p*
-                    (let [[{:keys [id]}] p*]
-                      (conj! to-update* {:id id
-                                         :v (add-param v)
-                                         :t t})
-                      (add-log {:e e
-                                :a (add-param a)
-                                :v (add-param v)
-                                :t t
-                                :op true}))
-                    (let [row {:e e
-                               :a (add-param a)
-                               :v (add-param v)
-                               :t t}]
-                      (conj! to-insert* row)
-                      (add-log (assoc row :op true))))))
-
-              :else
-              (e/error! "Wrong entity type: %s" e))))
-
+        ;; database unsert/update
         (let [to-log (-> to-log*
                          persistent!
                          not-empty)
@@ -365,15 +386,6 @@
               to-delete (-> to-delete*
                             persistent!
                             not-empty)]
-
-          ;; transaction record
-          (en/execute-map
-           en {:insert-into table
-               :values [{:e t
-                         :a (add-param :db/txInstant)
-                         :v (add-param t-inst)
-                         :t (add-param t-id)}]}
-           @qp)
 
           ;; insert
           (when to-insert

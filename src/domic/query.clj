@@ -221,6 +221,7 @@
                          sql))
 
               alias-sub-field (-> (sql/qualify alias-sub field)
+                                  (->cast)
                                   (with-source alias-sub))
 
               alias-fq (-> (sql/qualify alias-table field)

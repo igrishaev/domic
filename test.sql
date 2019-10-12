@@ -1261,6 +1261,53 @@ WITH sub1 AS (SELECT DISTINCT d.e, d.a, d.v, d.t FROM __test_datoms d WHERE d.a 
 
 
 
+    WITH "sub1" AS (SELECT
+        DISTINCT "d"."e",
+        "d"."a",
+        "d"."v",
+        "d"."t"
+    FROM
+        "_tests8_datoms" "d"
+    WHERE
+        "d"."a" = 'person/full-name' ),
+    "sub2" AS (SELECT
+        DISTINCT "d"."e",
+        "d"."a",
+        "d"."v",
+        "d"."t"
+    FROM
+        "_tests8_datoms" "d",
+        "sub1"
+    WHERE
+        ("d"."a" = 'band/members'
+        AND CAST("d"."v" AS bigint) = sub1.e)
+    ) SELECT
+        DISTINCT sub1.v AS "f1",
+        sub1.e AS "f2",
+        sub2.e AS "f3"
+    FROM
+        "sub1",
+        "sub2"
+    WHERE
+        sub2.v = sub1.e
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

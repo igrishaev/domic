@@ -116,8 +116,7 @@
     (sql/format (->map this)
                 :params params
                 :allow-namespaced-names? true
-                ;; :quoting :ansi
-                )))
+                :quoting :ansi)))
 
 
 (defn builder

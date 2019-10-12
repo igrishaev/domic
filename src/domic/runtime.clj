@@ -56,5 +56,8 @@
           nextval (sql/call :nextval (name table-seq))]
       (doseq [temp-id temp-ids]
         (qb/add-select qb [nextval temp-id]))
+
       (first
-       (en/query en (qb/format qb) {:keywordize? false})))))
+       (en/query en (qb/format qb)
+                 {:keywordize? false
+                  :identifiers identity})))))
