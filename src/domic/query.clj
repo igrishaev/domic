@@ -279,16 +279,18 @@
 
     (let [{:keys [qb sg vm]} scope
 
+          alias-main (sg "d")
+
           {:keys [elems]} expression
           alias-sub (src/get-alias src)
           fields (src/get-fields src)]
 
-      (qb/add-from? qb alias-sub)
+      (qb/add-from? qb [alias-sub alias-main])
 
       (doseq [[elem* field] (u/zip elems fields)]
         (let [[tag elem] elem*
 
-              alias-fq (-> (sql/qualify alias-sub field)
+              alias-fq (-> (sql/qualify alias-main field)
                            (with-source alias-sub))]
 
           (case tag

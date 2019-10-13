@@ -1,6 +1,8 @@
 (ns domic.query-test
   (:require
-   [clojure.test :refer [is deftest testing use-fixtures]]
+   [clojure.test
+    :refer [is deftest testing use-fixtures
+            run-tests]]
 
    [domic.fixtures :refer [fix-test-db *scope*]]
    [domic.api :as api]))
