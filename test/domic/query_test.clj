@@ -315,4 +315,16 @@
     (is (zero? (compare ?date-from #inst "1970-01-01T00:00:00")))
     (is (= ?genre "rock"))))
 
+
+(deftest test-missing-attribute
+
+  (let [query '[:find [?name ...]
+                :where
+                [?a :band/dunno ?name]]]
+
+    (is (thrown-with-msg?
+         Exception #"Unknown attrubute"
+
+         (api/q *scope* query)))))
+
 ;; check for aggregate
