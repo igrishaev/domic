@@ -365,6 +365,27 @@
                            ["John Deacon"])))))
 
 
+(deftest test-dataset-ok
+
+  (let [query '[:find ?x
+                :in $data
+                :where
+                [$data  _ _ ?b]
+                [$data ?b _ ?c]
+                [$data ?c _ ?x]]
+
+        dataset [[1 2 3]
+                 [3 4 5]
+                 [5 6 0]]
+
+        result (api/q *scope* query dataset)]
+
+    (is (= (sort result) '([0])))))
+
+
+
+;; check default source
+
 ;; check for aggregate
 ;; check mult sources
 ;; check rules
