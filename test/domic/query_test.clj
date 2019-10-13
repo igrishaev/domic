@@ -461,6 +461,40 @@
     (is (= (sort result) '(["ABBA"] ["Queen"])))))
 
 
+(deftest test-query-by-missing-attr
+
+  (let [query '[:find ?person-name ?band-name
+                :where
+                [?p :person/date-died]
+                [?p :person/full-name ?person-name]
+                [?b :band/members ?p]
+                [?b :band/name ?band-name]]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort result) '(["Freddie Mercury" "Queen"])))))
+
+
+(deftest test-operators-gt
+
+  (let [query '[:find [?person-name ...]
+                :in ?born-from
+                :where
+                [?p :person/full-name ?person-name]
+                [?p :person/date-born ?date-born]
+                [(> ?date-born ?born-from)]]
+
+        born-from #inst "1950"
+
+        result (api/q *scope* query born-from)]
+
+    (is (= (sort result) '("Agnetha Fältskog" "John Deacon")))))
+
+
+
 ;; check for aggregate
 ;; query missing attr
 ;; base operators
+;; check mult source
+;; check rules
+;; not/or/and
