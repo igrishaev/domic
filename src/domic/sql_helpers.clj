@@ -23,6 +23,11 @@
 (def ident-id? keyword?)
 
 
+(defn ident->lookup
+  [ident-id]
+  [:db/ident ident-id])
+
+
 (defn lookup?
   [node]
   (and (vector? node)

@@ -416,6 +416,28 @@
     nil))
 
 
+(defn- bind*
+  "
+  Common bind function which takes lookups and idents into account.
+  "
+  [{:as scope :keys [vm qp]}
+   input param]
+
+  (let [param* (cond
+                 ;; resolve if lookup
+                 (h/lookup? param)
+                 (rt/resolve-lookup! scope param)
+
+                 ;; resolve ident
+                 (h/ident-id? param)
+                 (rt/resolve-lookup! scope (h/ident->lookup param))
+
+                 :else param)]
+
+    (let [p (qp/add-alias qp param*)]
+      (vm/bind vm input p))))
+
+
 (defn- process-binding-tuple
   [{:as scope :keys [qb qp vm]}
    input param]
@@ -429,16 +451,12 @@
       (case tag
         :unused nil
         :var
-        (let [p (qp/add-alias qp param)]
-          (vm/bind vm input p))))))
+        (bind* scope input param)))))
 
 
 (defn- process-binding-scalar
-  [{:as scope :keys [qb vm qp]}
-   input param]
-
-  (let [p (qp/add-alias qp param)]
-    (vm/bind vm input p)))
+  [scope input param]
+  (bind* scope input param))
 
 
 (defn- process-binding-var
@@ -446,6 +464,8 @@
    input* param]
 
   (let [[tag input] input*]
+
+    (println "~~~~" input* param)
 
     (case tag
 

@@ -327,4 +327,66 @@
 
          (api/q *scope* query)))))
 
+
+(deftest test-lookup-in-pattern-error
+
+  (let [query '[:find [?website ...]
+                :where
+                [?band :band/website [:band/name "Queen"]]]]
+
+    (is (thrown-with-msg?
+         Exception #"Cannot parse query"
+
+         (api/q *scope* query)))))
+
+
+(deftest test-lookup-as-param
+
+  (let [query '[:find ?website .
+                :in ?band
+                :where
+                [?band :band/website ?website]]
+
+        band [:band/name "Queen"]
+
+        result (api/q *scope* query band)]
+
+    (is (= result "http://queenonline.com/"))))
+
+
+(deftest test-bind-scalar
+
+  (let [query '[:find ?website
+                :in ?band ?country ?genre
+                :where
+                [?band :band/genres ?genre]
+                [?band :band/country ?country]
+                [?band :band/website ?website]]
+
+        result (api/q *scope* query
+                      [:band/name "Queen"]
+                      :country/england
+                      "rock")]
+
+    (is (= result '(["http://queenonline.com/"])))))
+
+
+(deftest test-bind-tuple
+
+  (let [query '[:find ?website
+                :in [_ ?band _ ?country _ ?genre _]
+                :where
+                [?band :band/genres ?genre]
+                [?band :band/country ?country]
+                [?band :band/website ?website]]
+
+        ;; add some trash
+        tuple '(1 [:band/name "Queen"] AAA :country/england false "rock" {:foo bar})
+
+        result (api/q *scope* query tuple)]
+
+    (is (= result '(["http://queenonline.com/"])))))
+
+
 ;; check for aggregate
+;; params arity
