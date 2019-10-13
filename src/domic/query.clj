@@ -328,16 +328,44 @@
     (src/dataset alias fields)))
 
 
+(defn- resolve*
+  [scope param]
+  (cond
+    ;; resolve if lookup
+    (h/lookup? param)
+    (rt/resolve-lookup! scope param)
+
+    ;; resolve ident
+    (h/ident-id? param)
+    (rt/resolve-lookup! scope (h/ident->lookup param))
+
+    :else param))
+
+
+(defn- bind*
+  "
+  Common bind function which takes lookups and idents into account.
+  "
+  [{:as scope :keys [vm qp]}
+   input param]
+  (let [param* (resolve* scope param)
+        p (qp/add-alias qp param*)]
+    (vm/bind vm input p)
+    p))
+
+
 (defn- add-dataset
   [{:as scope :keys [qb qp]}
    dataset values]
   (let [alias (src/get-alias dataset)
         fields (src/get-fields dataset)
-        values* (mapv (fn [row]
-                        (mapv (fn [value]
-                                (qp/add-alias qp value))
-                              row))
-                      values)
+
+        fn-value (fn [value]
+                   (let [value* (resolve* scope value)]
+                     (qp/add-alias qp value*)))
+
+        values* (mapv #(mapv fn-value %) values)
+
         with [[alias {:columns fields}] {:values values*}]]
     (qb/add-with qb with)))
 
@@ -416,30 +444,8 @@
     nil))
 
 
-(defn- bind*
-  "
-  Common bind function which takes lookups and idents into account.
-  "
-  [{:as scope :keys [vm qp]}
-   input param]
-
-  (let [param* (cond
-                 ;; resolve if lookup
-                 (h/lookup? param)
-                 (rt/resolve-lookup! scope param)
-
-                 ;; resolve ident
-                 (h/ident-id? param)
-                 (rt/resolve-lookup! scope (h/ident->lookup param))
-
-                 :else param)]
-
-    (let [p (qp/add-alias qp param*)]
-      (vm/bind vm input p))))
-
-
 (defn- process-binding-tuple
-  [{:as scope :keys [qb qp vm]}
+  [scope
    input param]
 
   (when-not (= (count input)
@@ -460,12 +466,10 @@
 
 
 (defn- process-binding-var
-  [{:as scope :keys [qb qp sg]}
+  [scope
    input* param]
 
   (let [[tag input] input*]
-
-    (println "~~~~" input* param)
 
     (case tag
 

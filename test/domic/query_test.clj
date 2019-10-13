@@ -22,7 +22,8 @@
    ;; person
    {:db/ident       :person/full-name
     :db/valueType   :db.type/string
-    :db/cardinality :db.cardinality/one}
+    :db/cardinality :db.cardinality/one
+    :db/unique      :db.unique/identity}
 
    {:db/ident       :person/nick-name
     :db/valueType   :db.type/string
@@ -424,8 +425,25 @@
          (api/q *scope* query tuple)))))
 
 
+(deftest test-bind-collection
+
+  (let [query '[:find ?name
+                :in [?genre ...] [?members ...]
+                :where
+                [?band :band/genres ?genre]
+                [?band :band/members ?members]
+                [?band :band/name ?name]]
+
+        genres ["rock"]
+        members [[:person/full-name "Brian May"]
+                 [:person/full-name "John Deacon"]]
+
+        result (api/q *scope* query genres members)]
+
+    (is (= result '(["Queen"])))))
 
 
 
 ;; check for aggregate
-;; params arity
+;; query missing attr
+;; base operators
