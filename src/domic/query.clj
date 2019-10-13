@@ -444,7 +444,7 @@
 
   (when-not (= (count input)
                (count param))
-    (e/error! "Arity mismatch: %s != %s" input param))
+    (e/error! "Tuple arity mismatch: %s != %s" input param))
 
   (doseq [[input param] (u/zip input param)]
     (let [[tag input] input]
@@ -493,7 +493,7 @@
         n-params (count params)]
 
     (when-not (= n-inputs n-params)
-      (e/error! "Arity mismatch: %s input(s) and %s param(s)"
+      (e/error! "IN arity mismatch: %s input(s) and %s param(s)"
                 n-inputs n-params)))
 
   (doseq [[input* param] (u/zip inputs params)]

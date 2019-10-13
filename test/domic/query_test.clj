@@ -340,6 +340,21 @@
          (api/q *scope* query)))))
 
 
+(deftest test-bind-wrong-arity
+
+  (let [query '[:find ?website
+                :in ?name ?country
+                :where
+                [?band :band/name ?name]
+                [?band :band/country ?country]
+                [?band :band/website ?website]]]
+
+    (is (thrown-with-msg?
+         Exception #"IN arity mismatch"
+
+         (api/q *scope* query)))))
+
+
 (deftest test-lookup-as-param
 
   (let [query '[:find ?website .
@@ -381,11 +396,35 @@
                 [?band :band/website ?website]]
 
         ;; add some trash
-        tuple '(1 [:band/name "Queen"] AAA :country/england false "rock" {:foo bar})
+        tuple '(1 [:band/name "Queen"]
+                  AAA :country/england
+                  false "rock" {:foo bar})
 
         result (api/q *scope* query tuple)]
 
     (is (= result '(["http://queenonline.com/"])))))
+
+
+(deftest test-bind-tuple-arity
+
+  (let [query '[:find ?website
+                :in [_ ?band _ ?country _ ?genre _]
+                :where
+                [?band :band/genres ?genre]
+                [?band :band/country ?country]
+                [?band :band/website ?website]]
+
+        tuple '(1 [:band/name "Queen"]
+                  AAA :country/england
+                  false "rock" {:foo bar} EXTRA)]
+
+    (is (thrown-with-msg?
+         Exception #"Tuple arity mismatch"
+
+         (api/q *scope* query tuple)))))
+
+
+
 
 
 ;; check for aggregate
