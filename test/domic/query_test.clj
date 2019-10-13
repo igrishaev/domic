@@ -491,6 +491,18 @@
     (is (= (sort result) '("Agnetha Fältskog" "John Deacon")))))
 
 
+(deftest test-operators-eq
+
+  (let [query '[:find ?name
+                :where
+                [?p :person/nick-name ?nick]
+                [(= ?nick "Anna")]
+                [?p :person/full-name ?name]]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort result) '(["Agnetha Fältskog"])))))
+
 
 
 
