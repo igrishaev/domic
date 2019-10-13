@@ -385,6 +385,71 @@
     (is (= (sort result) '([0])))))
 
 
+(deftest test-dataset-multiple-join
+
+  (let [query '[:find ?id ?name ?country
+                :in $ds1 $ds2
+                :where
+                [$ds1 ?id ?name]
+                [$ds2 ?id ?country]]
+
+        ds1 [[1 "Queen"]
+             [2 "Abba"]
+             [3 "Korn"]
+             [4 "Pink FLoyd"]]
+
+        ds2 [[1 "GB"]
+             [2 "Sweden"]
+             [3 "USA"]
+             [5 "Russia"]]
+
+        result (api/q *scope* query ds1 ds2)]
+
+    (is (= (sort result) '([1 "Queen" "GB"]
+                           [2 "Abba" "Sweden"]
+                           [3 "Korn" "USA"])))))
+
+
+(deftest test-default-source-is-set
+
+  (let [query '[:find ?x
+                :in $
+                :where
+                [$data  _ _ ?b]]
+
+        dataset [[1 2 3]
+                 [3 4 5]
+                 [5 6 0]]]
+
+    (is (thrown-with-msg?
+         Exception #"has already been added"
+
+         (api/q *scope* query dataset)))))
+
+
+(deftest test-dataset-table-mix
+
+  (let [query '[:find ?band-name ?album-name ?website
+                :in $albums
+                :where
+                [?band :band/website ?website]
+                [?band :band/name ?band-name]
+                [$albums ?band-name ?album-name]]
+
+        albums [["Queen" "Innuendo"]
+                ["Queen" "The Miracle"]
+                ["ABBA" "Arrival"]
+                ["ABBA" "Waterloo"]
+                ["Korn" "Untouchables"]]
+
+        result (api/q *scope* query albums)]
+
+    (is (= (sort result)
+           '(["ABBA" "Arrival" "https://abbasite.com/"]
+             ["ABBA" "Waterloo" "https://abbasite.com/"]
+             ["Queen" "Innuendo" "http://queenonline.com/"]
+             ["Queen" "The Miracle" "http://queenonline.com/"])))))
+
 
 ;; check default source
 
