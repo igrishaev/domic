@@ -279,3 +279,40 @@
 
       (let [result* (api/q *scope* query genres)]
         (is (= (sort result) (sort result*)))))))
+
+
+(deftest test-find-result-types
+
+  (let [query '[:find
+                ?name
+                ?country
+                ?website
+                ?members
+                ?date-from
+                ?genre
+                :in ?name
+                :where
+                [?band :band/name      ?name]
+                [?band :band/country   ?country]
+                [?band :band/website   ?website]
+                [?band :band/members   ?members]
+                [?band :band/date-from ?date-from]
+                [?band :band/genres    ?genre]]
+
+        result (api/q *scope* query "Queen")
+
+        [?name
+         ?country
+         ?website
+         ?members
+         ?date-from
+         ?genre] (-> result sort first )]
+
+    (is (= ?name "Queen"))
+    (is (int? ?country))
+    (is (= ?website "http://queenonline.com/"))
+    (is (int? ?members))
+    (is (zero? (compare ?date-from #inst "1970-01-01T00:00:00")))
+    (is (= ?genre "rock"))))
+
+;; check for aggregate

@@ -155,7 +155,7 @@
     :db.type/double  (keyword "double precision")
     :db.type/bigdec  :decimal
     :db.type/ref     :bigint
-    :db.type/instant (keyword "timestamp with timezone")
+    :db.type/instant (keyword "timestamp with time zone")
     :db.type/uuid    :uuid
     :db.type/uri     :text
     :db.type/tuple   (e/error! "Tuples are not implemented")
