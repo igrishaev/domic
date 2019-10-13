@@ -8,10 +8,11 @@
 ;; todo
 ;; global test transaction
 ;; deal with prefix name
+;; reveal only for v attribute
 
 (def attrs
 
-  [;; countries
+  [ ;; countries
    {:db/ident       :country/england}
    {:db/ident       :country/sweden}
 
@@ -504,15 +505,61 @@
     (is (= (sort result) '(["Agnetha Fältskog"])))))
 
 
+(deftest test-bool-logic-not
+
+  (let [query '[:find ?name
+                :where
+                [?b :band/name "Queen"]
+                [?b :band/members ?p]
+                [?p :person/full-name ?name]
+                (not [(= ?name "Freddie Mercury")])]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort result) '(["Brian May"]
+                           ["John Deacon"]
+                           ["Roger Taylor"])))))
+
+
+(deftest test-bool-logic-or
+
+  (let [query '[:find ?name
+                :where
+                [?b :band/name "Queen"]
+                [?b :band/members ?p]
+                [?p :person/full-name ?name]
+                (or [(= ?name "Freddie Mercury")]
+                    [(= ?name "Roger Taylor")])]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort result) '(["Freddie Mercury"]
+                           ["Roger Taylor"])))))
+
+
+(deftest test-bool-logic-or2
+
+  (let [query '[:find ?name
+                :where
+                [?b :band/name "Queen"]
+                [?b :band/members ?p]
+                [?p :person/full-name ?name]
+                (or [(= ?name "Freddie Mercury")]
+                    (not [(= ?name "Roger Taylor")]))]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort result) '(["Brian May"]
+                           ["Freddie Mercury"]
+                           ["John Deacon"])))))
+
 
 
 
 ;; check for aggregate
-;; query missing attr
 ;; base operators
 ;; check mult sources
 ;; check rules
-;; not/or/and
 ;; check builtin functions
 ;; check find patterns
 ;; check pull
