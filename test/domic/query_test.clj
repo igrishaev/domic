@@ -443,6 +443,23 @@
     (is (= result '(["Queen"])))))
 
 
+(deftest test-bind-relation
+
+  (let [query '[:find ?name
+                :in [[?country ?member _]]
+                :where
+                [?band :band/country ?country]
+                [?band :band/members ?member]
+                [?band :band/name ?name]]
+
+        rel '[[:country/england [:person/full-name "Brian May"]       dunno]
+              [:country/sweden  [:person/full-name "Benny Andersson"] nil]
+              [100500           99998888                              AAA]]
+
+        result (api/q *scope* query rel)]
+
+    (is (= (sort result) '(["ABBA"] ["Queen"])))))
+
 
 ;; check for aggregate
 ;; query missing attr
