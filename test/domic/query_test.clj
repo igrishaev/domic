@@ -432,9 +432,9 @@
   (let [query '[:find ?band-name ?album-name ?website
                 :in $albums
                 :where
+                [$albums ?band-name ?album-name]
                 [?band :band/website ?website]
-                [?band :band/name ?band-name]
-                [$albums ?band-name ?album-name]]
+                [?band :band/name ?band-name]]
 
         albums [["Queen" "Innuendo"]
                 ["Queen" "The Miracle"]
@@ -451,10 +451,8 @@
              ["Queen" "The Miracle" "http://queenonline.com/"])))))
 
 
-;; check default source
 
 ;; check for aggregate
-;; check mult sources
 ;; check rules
 ;; check builtin functions
 ;; check find patterns
