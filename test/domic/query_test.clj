@@ -492,9 +492,19 @@
 
 
 
+
+
+
 ;; check for aggregate
 ;; query missing attr
 ;; base operators
-;; check mult source
+;; check mult sources
 ;; check rules
 ;; not/or/and
+;; check builtin functions
+;; check find patterns
+;; check pull
+;; check return maps (strings, symbols)
+;; check with
+;; check map form
+;; check with no an attr in a query
