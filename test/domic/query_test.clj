@@ -452,6 +452,44 @@
 
 
 
+(deftest test-dataset-table-mix2
+
+  (let [query '[:find ?band-name ?album-name ?duration ?person-name ?role
+                :in $albums $members
+                :where
+                [$albums ?band-name ?album-name ?duration]
+                [$members ?band-name ?person-name ?role]
+                [?band :band/website ?website]
+                [?band :band/name ?band-name]
+                [?band :band/members ?person]
+                [?persion :person/full-name ?person-name]]
+
+        albums [["Queen" "Innuendo"     "53:48"]
+                ["Queen" "The Miracle"  "41:22"]
+                ["ABBA"  "Arrival"      "37:31"]
+                ["ABBA"  "Waterloo"     "38:10"]
+                ["Korn"  "Untouchables" "65:00"]]
+
+        members [["ABBA"  "Benny Andersson"  "vocal"]
+                 ["ABBA"  "Agnetha Fältskog" "vocal"]
+                 ["Queen" "John Deacon"      "bass"]
+                 ["Queen" "Roger Taylor"     "drums"]
+                 ["Korn"  "Jonathan Davis"   "vocal"]]
+
+        result (api/q *scope* query albums members)]
+
+    (is (= (sort result)
+           '(["ABBA"  "Arrival"     "37:31" "Agnetha Fältskog" "vocal"]
+             ["ABBA"  "Arrival"     "37:31" "Benny Andersson"  "vocal"]
+             ["ABBA"  "Waterloo"    "38:10" "Agnetha Fältskog" "vocal"]
+             ["ABBA"  "Waterloo"    "38:10" "Benny Andersson"  "vocal"]
+             ["Queen" "Innuendo"    "53:48" "John Deacon"      "bass"]
+             ["Queen" "Innuendo"    "53:48" "Roger Taylor"     "drums"]
+             ["Queen" "The Miracle" "41:22" "John Deacon"      "bass"]
+             ["Queen" "The Miracle" "41:22" "Roger Taylor"     "drums"])))))
+
+
+
 ;; check for aggregate
 ;; check rules
 ;; check builtin functions
