@@ -122,6 +122,64 @@
                            (process-bool-expr scope expression)))))))
 
 
+(defn -db-check-fn-arity
+  [num op args]
+  (when-not (some-> args count (= num))
+    (e/error! "Func/operator %s takes one argument, %s given"
+              op (u/join args))))
+
+
+(defn- ->db-func-unary-op-pre
+  [op args]
+  (-db-check-fn-arity 1 op args)
+
+  (let [[arg1] args]
+    (sql/raw [(format "%s " op) arg1])))
+
+
+(defn- ->db-func-unary-op-post
+  [op args]
+  (-db-check-fn-arity 1 op args)
+
+  (let [[arg1] args]
+    (sql/raw [arg1 (format " %s" op)])))
+
+
+(defn- ->db-func-binary-op
+  [op args]
+  (-db-check-fn-arity 2 op args)
+
+  (let [[arg1 arg2] args]
+    (sql/raw [arg1 (format " %s " op) arg2])))
+
+
+(defn- ->db-func-expression
+  [fn args]
+
+  (case fn
+
+    (+ - * /)
+    (->db-func-binary-op fn args)
+
+    mod
+    (->db-func-binary-op (symbol "%") args)
+
+    exp
+    (->db-func-binary-op (symbol "^") args)
+
+    fact
+    (->db-func-unary-op-post "!" args)
+
+    sqrt
+    (->db-func-unary-op-pre "|/" args)
+
+    abs
+    (->db-func-unary-op-pre "@" args)
+
+    ;; else
+    (apply sql/call fn args)))
+
+
 (defn- add-function
   [{:as scope :keys [qb vm sg qp]}
    expression]
@@ -147,7 +205,7 @@
         fn-expr
         (case fn-tag
           :sym
-          (apply sql/call fn args*))]
+          (->db-func-expression fn args*))]
 
     (case bind-tag
       :bind-scalar

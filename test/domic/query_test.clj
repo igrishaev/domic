@@ -508,16 +508,16 @@
 
   (let [query '[:find ?a ?b ?c ?d ?e
                 :where
-                [(mod  5 4)  ?a]    ;; 1
-                [(exp  2 3)  ?b]    ;; 8
-                [(fact 5)    ?c]    ;; 120
-                [(sqr  25 5) ?d]    ;; 5
-                [(abs -5)    ?e]    ;; 5
+                [(mod  5 4) ?a]    ;; 1
+                [(exp  2 3) ?b]    ;; 8
+                [(fact 5)   ?c]    ;; 120
+                [(sqrt 25)  ?d]    ;; 5
+                [(abs -5)   ?e]    ;; 5
                 ]
 
         result (api/q *scope* query)]
 
-    (is (= result '([1 8 120 5 5])))))
+    (is (= result '([1 8.0 120M 5.0 5])))))
 
 
 ;; check for aggregate
