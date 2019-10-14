@@ -536,6 +536,27 @@
              ["Anni-Frid Lyngstad performs in ABBA"])))))
 
 
+
+(deftest test-function-get-some-no-coerce!
+
+  (let [query '[:find ?person-name ?date-died
+                :where
+                [?person :person/full-name ?person-name ]
+                [(get-else $ ?person :person/date-died "N/A") ?date-died]]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort result)
+           '(["Agnetha Fältskog" "N/A"]
+             ["Anni-Frid Lyngstad" "N/A"]
+             ["Benny Andersson" "N/A"]
+             ["Björn Ulvaeus" "N/A"]
+             ["Brian May" "N/A"]
+             ["Freddie Mercury" "1991-11-24 02:00:00+02"]
+             ["John Deacon" "N/A"]
+             ["Roger Taylor" "N/A"])))))
+
+
 ;; check for aggregate
 ;; check rules
 ;; check builtin functions

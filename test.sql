@@ -1338,8 +1338,26 @@ WHERE (sub2.e = sub1.e
 
 
 
+select v from (
 
+select
 
+1 as n, v
+from datoms4
+where e = 1 and a = 'artist/name2'
+
+union
+
+select
+2 as n, 'N/A' as v
+from datoms4 where e = 1
+
+order by n
+limit 1
+
+) _foo
+
+;
 
 
 

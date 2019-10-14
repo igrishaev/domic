@@ -1135,3 +1135,20 @@ name site country
                                       [:= :v (add-param v)]]
                               :limit 1)]]
                   (qb/add-where qb-sub where))
+
+
+
+#_
+(vm/bind vm binding fn-expr)
+
+#_
+{:expr {:fn [:sym get-else],
+        :args [[:src-var $]
+               [:var ?person]
+               [:cst [:kw :person/date-died]]
+               [:cst [:str N/A]]]},
+ :binding [:bind-scalar ?date-died]}
+
+
+#_
+[(get-else src-var ent attr default) ?val-or-default]

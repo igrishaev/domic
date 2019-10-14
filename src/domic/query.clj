@@ -180,12 +180,72 @@
     (apply sql/call fn args)))
 
 
-(defn- add-function
+(defn- add-function-get-else
+  [{:as scope :keys [table
+                     qb vm qp]}
+   expression]
+
+  (let [{:keys [expr binding]} expression
+        {:keys [args]} expr
+
+        [bind-tag binding] binding
+
+        [arg-src arg-e arg-a arg-d] args
+
+        e (let [[tag e] arg-e]
+            (case tag :var e))
+
+        a (let [[tag a] arg-a]
+            (case tag :cst (let [[tag a] a]
+                             (case tag :kw a))))
+
+        d (let [[tag d] arg-d]
+            (case tag :cst (let [[tag d] d]
+                             (case tag :str d))))
+
+        e-var   (vm/get-val vm e)
+        a-param (qp/add-alias qp a)
+        d-param (qp/add-alias qp d)
+
+        sql (sql/build
+
+             :select :v
+             :from
+
+             [[(sql/build
+                :union
+
+                [(sql/build
+                  :select [[1 :n] :v]
+                  :from [table]
+                  :where [:and
+                          [:= :e e-var]
+                          [:= :a a-param]])
+
+                 (sql/build
+                  :select [[2 :n] d-param]
+                  :from [table]
+                  :where [:= :e e-var])]
+
+                :order-by :n
+                :limit 1) :foo]])]
+
+    (case bind-tag
+      :bind-scalar
+      (vm/bind vm binding sql)))
+
+  nil)
+
+
+(defn- add-function-common
   [{:as scope :keys [qb vm sg qp]}
    expression]
 
   (let [{:keys [expr binding]} expression
         {:keys [fn args]} expr
+
+        [fn-tag fn] fn
+        [bind-tag binding] binding
 
         args* (for [arg args]
                 (let [[tag arg] arg]
@@ -199,8 +259,6 @@
                         (qp/add-param qp param arg)
                         (sql/param param))))))
 
-        [fn-tag fn] fn
-        [bind-tag binding] binding
 
         fn-expr
         (case fn-tag
@@ -212,6 +270,24 @@
       (vm/bind vm binding fn-expr)))
 
   nil)
+
+(defn- add-function
+  [scope expression]
+
+  (let [{:keys [expr]} expression
+        {:keys [fn args]} expr
+
+        [fn-tag fn] fn]
+
+    (case fn-tag
+      :sym
+      (case fn
+
+        get-else
+        (add-function-get-else scope expression)
+
+        ;; else
+        (add-function-common scope expression)))))
 
 
 (defn- find-attr
