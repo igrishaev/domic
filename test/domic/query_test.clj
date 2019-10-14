@@ -458,9 +458,9 @@
                 :in $albums $members
                 :where
                 [$albums ?band-name ?album-name ?duration]
-                [$members ?band-name ?person-name ?role]
                 [?band :band/website ?website]
                 [?band :band/name ?band-name]
+                [$members ?band-name ?person-name ?role]
                 [?band :band/members ?person]
                 [?persion :person/full-name ?person-name]]
 
@@ -488,6 +488,20 @@
              ["Queen" "The Miracle" "41:22" "John Deacon"      "bass"]
              ["Queen" "The Miracle" "41:22" "Roger Taylor"     "drums"])))))
 
+
+(deftest test-basic-math-operators
+
+  (let [query '[:find ?a ?b ?c ?d
+                :where
+                [(+  1  2) ?a]  ;; 3
+                [(- ?a -1) ?b]  ;; 4
+                [(* ?b  3) ?c]  ;; 12
+                [(/ ?c  4) ?d]  ;; 3
+                ]
+
+        result (api/q *scope* query)]
+
+    (is (= result '([3 4 12 3])))))
 
 
 ;; check for aggregate
