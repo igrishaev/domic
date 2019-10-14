@@ -504,6 +504,22 @@
     (is (= result '([3 4 12 3])))))
 
 
+(deftest test-extended-math-operators
+
+  (let [query '[:find ?a ?b ?c ?d ?e
+                :where
+                [(mod  5 4)  ?a]    ;; 1
+                [(exp  2 3)  ?b]    ;; 8
+                [(fact 5)    ?c]    ;; 120
+                [(sqr  25 5) ?d]    ;; 5
+                [(abs -5)    ?e]    ;; 5
+                ]
+
+        result (api/q *scope* query)]
+
+    (is (= result '([1 8 120 5 5])))))
+
+
 ;; check for aggregate
 ;; check rules
 ;; check builtin functions
