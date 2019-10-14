@@ -520,6 +520,22 @@
     (is (= result '([1 8.0 120M 5.0 5])))))
 
 
+(deftest test-function-concat
+
+  (let [query '[:find ?concat
+                :where
+                [?band :band/name ?band-name]
+                [?band :band/members ?person]
+                [?person :person/full-name ?person-name]
+                [(concat ?person-name " performs in " ?band-name) ?concat]]
+
+        result (api/q *scope* query)]
+
+    (is (= (->> result sort (take 2))
+           '(["Agnetha Fältskog performs in ABBA"]
+             ["Anni-Frid Lyngstad performs in ABBA"])))))
+
+
 ;; check for aggregate
 ;; check rules
 ;; check builtin functions
