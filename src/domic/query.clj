@@ -291,7 +291,7 @@
         (let [[tag elem] elem*
 
               alias-fq (-> (sql/qualify alias-main field)
-                           (with-source alias-sub))]
+                           (with-source [alias-sub alias-main]))]
 
           (case tag
 
