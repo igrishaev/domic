@@ -33,13 +33,11 @@
 ;; process with
 ;; process maps
 ;; deal with pull pattern
-;; detect idents
+;; detect idents only for e and v/ref
 
-;; get-else
 ;; get-some
 ;; ground
 ;; fulltext
-;; missing?
 ;; tuple
 ;; tx-ids
 ;; tx-data
