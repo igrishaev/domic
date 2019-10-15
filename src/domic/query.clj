@@ -929,7 +929,7 @@
 
 
 (defn- process-keys
-  [scope result keys-expression]
+  [scope result keys-expression find-type]
 
   (let [{:keys [keys-kw keys]} keys-expression
 
@@ -938,10 +938,23 @@
                  :strs str
                  :syms identity)
 
-        keys* (mapv fn-map keys)]
+        keys* (mapv fn-map keys)
 
-    (for [row result]
-      (into {} (u/zip keys* row)))))
+        ->map (fn [row] (into {} (u/zip keys* row)))]
+
+    (case find-type
+
+      :rel
+      (mapv ->map result)
+
+      :tuple
+      (->map result)
+
+      :coll
+      (mapv #(->map [%]) result)
+
+      :scalar
+      (->map [result]))))
 
 
 (defn- q-internal
@@ -974,7 +987,7 @@
     (sm/add-source sm const/src-default (src/table table))
 
     (case find-type
-      :scalar
+      (:scalar :tuple)
       (qb/set-limit qb (sql/inline 1))
       nil)
 
@@ -994,13 +1007,10 @@
           (process-arrays scope $)
 
           ;; (post-process scope $)
-          (process-find-type $ find-type)
+          (process-find-type $ find-type))
 
-          )
-
-      ;; keys
-      ;; (as-> $ (process-keys scope $ keys))
-
+      keys
+      (as-> $ (process-keys scope $ keys find-type))
 
       )))
 

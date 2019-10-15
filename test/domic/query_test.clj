@@ -580,25 +580,6 @@
              ["Roger Taylor"])))))
 
 
-(deftest test-maps-keys-simple
-
-  (let [query '[:find ?band-name ?person-name
-                :keys band person
-                :where
-                [?band :band/name ?band-name]
-                [?band :band/members ?person]
-                [?person :person/full-name ?person-name]]
-
-        result (api/q *scope* query)]
-
-    (is (= result
-
-         #_(sort result)
-           1
-)))
-  )
-
-
 (deftest test-find-spec-rel
 
   (let [query '[:find ?a ?b ?c
@@ -637,6 +618,75 @@
         result (api/q *scope* query 1 2 3)]
 
     (is (= result 1))))
+
+
+(deftest test-maps-keys-keywords
+
+  (let [query '[:find ?band-name ?person-name
+                :keys band person
+                :where
+                [?band :band/name ?band-name]
+                [?band :band/members ?person]
+                [?person :person/full-name ?person-name]]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort-by (juxt :band :person) result)
+           '({:band "ABBA", :person "Agnetha Fältskog"}
+             {:band "ABBA", :person "Anni-Frid Lyngstad"}
+             {:band "ABBA", :person "Benny Andersson"}
+             {:band "ABBA", :person "Björn Ulvaeus"}
+             {:band "Queen", :person "Brian May"}
+             {:band "Queen", :person "Freddie Mercury"}
+             {:band "Queen", :person "John Deacon"}
+             {:band "Queen", :person "Roger Taylor"})))))
+
+
+(deftest test-maps-keys-strings
+
+  (let [query '[:find ?band-name ?person-name
+                :strs prefix/band prefix/person
+                :where
+                [?band :band/name ?band-name]
+                [?band :band/members ?person]
+                [?person :person/full-name ?person-name]]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort-by (juxt #(get % "prefix/band")
+                          #(get % "prefix/person")) result)
+           '({"prefix/band" "ABBA", "prefix/person" "Agnetha Fältskog"}
+             {"prefix/band" "ABBA", "prefix/person" "Anni-Frid Lyngstad"}
+             {"prefix/band" "ABBA", "prefix/person" "Benny Andersson"}
+             {"prefix/band" "ABBA", "prefix/person" "Björn Ulvaeus"}
+             {"prefix/band" "Queen", "prefix/person" "Brian May"}
+             {"prefix/band" "Queen", "prefix/person" "Freddie Mercury"}
+             {"prefix/band" "Queen", "prefix/person" "John Deacon"}
+             {"prefix/band" "Queen", "prefix/person" "Roger Taylor"})))))
+
+(deftest test-maps-keys-symbols
+
+  (let [query '[:find ?band-name ?person-name
+                :syms prefix/band prefix/person
+                :where
+                [?band :band/name ?band-name]
+                [?band :band/members ?person]
+                [?person :person/full-name ?person-name]]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort-by (juxt #(get % 'prefix/band)
+                          #(get % 'prefix/person)) result)
+
+           '({prefix/band "ABBA",  prefix/person "Agnetha Fältskog"}
+             {prefix/band "ABBA",  prefix/person "Anni-Frid Lyngstad"}
+             {prefix/band "ABBA",  prefix/person "Benny Andersson"}
+             {prefix/band "ABBA",  prefix/person "Björn Ulvaeus"}
+             {prefix/band "Queen", prefix/person "Brian May"}
+             {prefix/band "Queen", prefix/person "Freddie Mercury"}
+             {prefix/band "Queen", prefix/person "John Deacon"}
+             {prefix/band "Queen", prefix/person "Roger Taylor"})))))
+
 
 
 ;; check for aggregate
