@@ -598,6 +598,22 @@
 )))
   )
 
+
+(deftest test-find-spec-tuple
+
+  (let [query '[:find [?a ?b ?c]
+                :in ?a ?b ?c]
+
+        result (api/q *scope* query 1 2 3)]
+
+    (is (= result [1 2 3])))
+
+
+
+
+  )
+
+
 ;; check for aggregate
 ;; check rules
 ;; check builtin functions

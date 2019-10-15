@@ -865,14 +865,12 @@
         find-elem-list
         (case tag
 
-          ;; :tuple TODO
-          ;; https://github.com/alexanderkiel/datomic-spec/issues/6
+          (:rel :tuple)
+          find-spec
 
           (:coll :scalar)
           (let [{:keys [elem]} find-spec]
-            [elem])
-
-          :rel find-spec)
+            [elem]))
 
         aggs? (map find-elem-agg? find-elem-list)
         group? (some identity aggs?)]
@@ -892,9 +890,10 @@
 (defn- process-find-type
   [result find-type]
   (case find-type
-    :coll (map first result)
-    :scalar (ffirst result)
-    result))
+    :rel    result
+    :tuple  (first result)
+    :coll   (map first result)
+    :scalar (ffirst result)))
 
 
 (defmulti post-process-column

@@ -213,7 +213,7 @@
   (s/cat :elem ::find-elem :period #{'.}))
 
 (s/def ::find-tuple
-  (s/+ ::find-elem))
+  (s/spec (s/+ ::find-elem)))
 
 (s/def ::find-elem
   (s/or :var ::variable
