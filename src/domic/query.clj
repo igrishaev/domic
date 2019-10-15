@@ -144,16 +144,12 @@
     (case pred-tag
       :sym
 
-      (add-predicate-common scope expression)
-
-      #_
       (case pred
 
-        ;; missing
-        ;; (add-predicate-missing scope expression)
+        missing?
+        (add-predicate-missing scope expression)
 
         ;; else
-        #_
         (add-predicate-common scope expression))
 
       (e/error-case! pred-tag))))

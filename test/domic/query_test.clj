@@ -558,13 +558,15 @@
              ["John Deacon" "N/A"]
              ["Roger Taylor" "N/A"])))))
 
+;; todo
+;; check src var
 
 (deftest test-predicate-missing
 
   (let [query '[:find ?person-name
                 :where
                 [?person :person/full-name ?person-name]
-                [(missing $ ?person :person/date-died)]]
+                [(missing? $ ?person :person/date-died)]]
 
         result (api/q *scope* query)]
 
