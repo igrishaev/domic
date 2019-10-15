@@ -177,6 +177,7 @@
 
 (defmethod query-form :list [_]
   (s/cat :find (s/cat :find-kw #{:find} :spec ::find-spec)
+         :keys (s/? (s/cat :keys-kw #{:keys :strs :syms} :keys (s/+ symbol?)))
          :with (s/? (s/cat :with-kw #{:with} :vars (s/+ ::variable)))
          :in (s/? (s/cat :in-kw #{:in} :inputs (s/+ ::input)))
          :where (s/? (s/cat :where-kw #{:where} :clauses (s/+ ::clause)))))

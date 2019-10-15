@@ -579,6 +579,25 @@
              ["John Deacon"]
              ["Roger Taylor"])))))
 
+
+(deftest test-maps-keys-simple
+
+  (let [query '[:find ?band-name ?person-name
+                :keys band person
+                :where
+                [?band :band/name ?band-name]
+                [?band :band/members ?person]
+                [?person :person/full-name ?person-name]]
+
+        result (api/q *scope* query)]
+
+    (is (= result
+
+         #_(sort result)
+           1
+)))
+  )
+
 ;; check for aggregate
 ;; check rules
 ;; check builtin functions

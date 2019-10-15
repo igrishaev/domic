@@ -929,6 +929,22 @@
    @pp))
 
 
+(defn- process-keys
+  [scope result keys-expression]
+
+  (let [{:keys [keys-kw keys]} keys-expression
+
+        fn-map (case keys-kw
+                 :keys keyword
+                 :strs str
+                 :syms identity)
+
+        keys* (mapv fn-map keys)]
+
+    (for [row result]
+      (into {} (u/zip keys* row)))))
+
+
 (defn- q-internal
   [{:as scope :keys [debug?
                      table
@@ -947,10 +963,12 @@
 
         {:keys [qb qp sm]} scope
 
-        {:keys [find in where]} query-parsed
+        {:keys [find in where keys]} query-parsed
         {:keys [inputs]} in
         {:keys [spec]} find
         {:keys [clauses]} where
+
+        ;; {:keys [keys-kw keys]} keys
 
         find-type (get-find-type spec)]
 
@@ -971,10 +989,21 @@
       (qb/debug qb @qp)
       (qb/pprint qb @qp))
 
-    (as-> (qb/format qb @qp) $
-      (process-arrays scope $)
-      (post-process scope $)
-      (process-find-type $ find-type))))
+    (cond->
+
+        (as-> (qb/format qb @qp) $
+          (process-arrays scope $)
+
+          ;; (post-process scope $)
+          (process-find-type $ find-type)
+
+          )
+
+      ;; keys
+      ;; (as-> $ (process-keys scope $ keys))
+
+
+      )))
 
 
 (defn- parse-query
