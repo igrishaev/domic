@@ -599,6 +599,16 @@
   )
 
 
+(deftest test-find-spec-rel
+
+  (let [query '[:find ?a ?b ?c
+                :in ?a ?b ?c]
+
+        result (api/q *scope* query 1 2 3)]
+
+    (is (= result [[1 2 3]]))))
+
+
 (deftest test-find-spec-tuple
 
   (let [query '[:find [?a ?b ?c]
@@ -606,12 +616,27 @@
 
         result (api/q *scope* query 1 2 3)]
 
-    (is (= result [1 2 3])))
+    (is (= result [1 2 3]))))
 
 
+(deftest test-find-spec-coll
+
+  (let [query '[:find [?a ...]
+                :in ?a ?b ?c]
+
+        result (api/q *scope* query 1 2 3)]
+
+    (is (= result [1]))))
 
 
-  )
+(deftest test-find-spec-scalar
+
+  (let [query '[:find ?a .
+                :in ?a ?b ?c]
+
+        result (api/q *scope* query 1 2 3)]
+
+    (is (= result 1))))
 
 
 ;; check for aggregate

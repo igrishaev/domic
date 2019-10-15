@@ -198,9 +198,9 @@
   (s/cat :clauses (s/+ ::clause)))
 
 (s/def ::find-spec
-  (s/alt :rel ::find-rel
+  (s/alt :tuple ::find-tuple
+         :rel ::find-rel
          :coll ::find-coll
-         :tuple ::find-tuple
          :scalar ::find-scalar))
 
 (s/def ::find-rel

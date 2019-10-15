@@ -892,7 +892,7 @@
   (case find-type
     :rel    result
     :tuple  (first result)
-    :coll   (map first result)
+    :coll   (mapv first result)
     :scalar (ffirst result)))
 
 
