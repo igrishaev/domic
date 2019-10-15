@@ -858,19 +858,23 @@
 
 (defn- process-find
   [{:as scope :keys [vm qb]}
-   find-spec]
+   find-spec with-vars]
 
   (let [[tag find-spec] find-spec
 
-        find-elem-list
-        (case tag
+        find-elem-list (concat
 
-          (:rel :tuple)
-          find-spec
+                        (for [var with-vars]
+                          [:var var])
 
-          (:coll :scalar)
-          (let [{:keys [elem]} find-spec]
-            [elem]))
+                        (case tag
+
+                          (:rel :tuple)
+                          find-spec
+
+                          (:coll :scalar)
+                          (let [{:keys [elem]} find-spec]
+                            [elem])))
 
         aggs? (map find-elem-agg? find-elem-list)
         group? (some identity aggs?)]
@@ -971,6 +975,12 @@
         (->map [result])))))
 
 
+(defn- process-reduce-with
+  [scope result with-vars]
+  (let [n (count with-vars)]
+    (mapv #(subvec % n) result)))
+
+
 (defn- q-internal
   [{:as scope :keys [debug?
                      table
@@ -989,14 +999,16 @@
 
         {:keys [qb qp sm]} scope
 
-        {:keys [find in where keys]} query-parsed
+        {:keys [find in where keys with]} query-parsed
         {:keys [inputs]} in
-        {:keys [spec]} find
-        {:keys [clauses]} where
+
+        {find-spec :spec} find
+        {where-clauses :clauses} where
+        {with-vars :vars} with
 
         ;; {:keys [keys-kw keys]} keys
 
-        find-type (get-find-type spec)]
+        find-type (get-find-type find-spec)]
 
     (sm/add-source sm const/src-default (src/table table))
 
@@ -1006,8 +1018,8 @@
       nil)
 
     (process-in scope inputs query-inputs)
-    (process-where scope clauses)
-    (process-find scope spec)
+    (process-where scope where-clauses)
+    (process-find scope find-spec with-vars)
 
     (qb/set-distinct qb)
 
@@ -1015,19 +1027,22 @@
       (qb/debug qb @qp)
       (qb/pprint qb @qp))
 
-    (cond->
+    (cond-> (qb/format qb @qp)
 
-        (as-> (qb/format qb @qp) $
-          (process-arrays scope $)
+      true
+      (as-> query (process-arrays scope query))
 
-          ;; (post-process scope $)
-          (process-find-type $ find-type))
+      with-vars
+      (as-> $ (process-reduce-with scope $ with-vars))
+
+      true
+      (as-> $ (process-find-type $ find-type))
 
       keys
-      (as-> $ (process-keys scope $ keys find-type))
+      (as-> $ (process-keys scope $ keys find-type)))))
 
-      )))
 
+;; (post-process scope $)
 
 (defn- parse-query
   [query-list]

@@ -760,6 +760,20 @@
            (api/q *scope* q))))))
 
 
+(deftest test-with-simple
+
+  (let [query '[:find ?gender-ident
+                :with ?person
+                :where
+                [?person :person/gender ?gender]
+                [?gender :db/ident ?gender-ident]]
+
+        result (api/q *scope* query)]
+
+    (is (= (count result) 8))
+    (is (= (set result)
+           #{["gender/male"] ["gender/female"]}))))
+
 
 
 
