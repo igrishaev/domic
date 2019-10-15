@@ -42,6 +42,10 @@
     :db/cardinality :db.cardinality/one
     :db/unique      :db.unique/identity}
 
+   {:db/ident       :band/rating
+    :db/valueType   :db.type/float
+    :db/cardinality :db.cardinality/one}
+
    {:db/ident       :band/country
     :db/valueType   :db.type/ref
     :db/cardinality :db.cardinality/one}
@@ -147,6 +151,7 @@
     :person/gender :gender/male}
 
    {:band/name "ABBA"
+    :band/rating 4.75
     :band/country :country/sweden
     :band/website "https://abbasite.com/"
     :band/date-from #inst "1972"

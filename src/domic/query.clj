@@ -940,21 +940,35 @@
 
         keys* (mapv fn-map keys)
 
-        ->map (fn [row] (into {} (u/zip keys* row)))]
+        ->map (fn [row] (into {} (u/zip keys* row)))
+
+        -check-arity!
+        (fn [row]
+          (when-not (= (count row)
+                       (count keys*))
+            (e/error! "Find/keys arity mismatch")))]
 
     (case find-type
 
       :rel
-      (mapv ->map result)
+      (do
+        (-check-arity! (first result))
+        (mapv ->map result))
 
       :tuple
-      (->map result)
+      (do
+        (-check-arity! result)
+        (->map result))
 
       :coll
-      (mapv #(->map [%]) result)
+      (do
+        (-check-arity! '[_])
+        (mapv #(->map [%]) result))
 
       :scalar
-      (->map [result]))))
+      (do
+        (-check-arity! '[_])
+        (->map [result])))))
 
 
 (defn- q-internal

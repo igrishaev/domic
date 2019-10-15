@@ -688,13 +688,83 @@
              {prefix/band "Queen", prefix/person "Roger Taylor"})))))
 
 
+(deftest test-maps-keys-with-coll
+
+  (let [query '[:find ?band-name
+                :keys band/name
+                :where
+                [_ :band/name ?band-name]]
+
+        result (api/q *scope* query)]
+
+    (is (= (->> result (sort-by :band/name))
+           [#:band{:name "ABBA"} #:band{:name "Queen"}]))))
+
+
+(deftest test-maps-keys-with-tuple
+
+  (let [query '[:find [?band-name ?band-rating]
+                :keys band/name band/rating
+                :where
+                [?band :band/name ?band-name]
+                [?band :band/country :country/sweden]
+                [?band :band/rating ?band-rating]]
+
+        result (api/q *scope* query)]
+
+    (is (= result {:band/name "ABBA" :band/rating 4.75}))))
+
+
+(deftest test-maps-keys-with-scalar
+
+  (let [query '[:find ?band-name .
+                :keys band/name
+                :where
+                [?band :band/name ?band-name]
+                [?band :band/country :country/sweden]]
+
+        result (api/q *scope* query)]
+
+    (is (= result {:band/name "ABBA"}))))
+
+
+(deftest test-maps-keys-arity-mismatch
+
+  (let [query1 '[:find ?band-name ?band-country
+                 :keys band/name
+                 :where
+                 [?band :band/name ?band-name]
+                 [?band :band/country ?band-country]]
+
+        query2 '[:find [?band-name ?band-country]
+                 :keys band/name
+                 :where
+                 [?band :band/name ?band-name]
+                 [?band :band/country ?band-country]]
+
+        query3 '[:find [?band-name ...]
+                 :keys band/name band/test
+                 :where
+                 [_ :band/name ?band-name]]
+
+        query4 '[:find ?band-name .
+                 :keys band/name band/test
+                 :where
+                 [_ :band/name ?band-name]]]
+
+    (doseq [q [query1 query2 query3 query4]]
+
+      (is (thrown-with-msg?
+           Exception #"Find/keys arity mismatch"
+
+           (api/q *scope* q))))))
+
+
+
+
 
 ;; check for aggregate
 ;; check rules
-;; check builtin functions
-;; check find patterns
 ;; check pull
-;; check return maps (strings, symbols)
 ;; check with
-;; check map form
 ;; check with no an attr in a query
