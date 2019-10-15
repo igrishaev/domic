@@ -536,12 +536,14 @@
              ["Anni-Frid Lyngstad performs in ABBA"])))))
 
 
-
+;; todo
+;; coerce attr type
+;; check source var
 (deftest test-function-get-some-no-coerce!
 
   (let [query '[:find ?person-name ?date-died
                 :where
-                [?person :person/full-name ?person-name ]
+                [?person :person/full-name ?person-name]
                 [(get-else $ ?person :person/date-died "N/A") ?date-died]]
 
         result (api/q *scope* query)]
@@ -556,6 +558,24 @@
              ["John Deacon" "N/A"]
              ["Roger Taylor" "N/A"])))))
 
+
+(deftest test-predicate-missing
+
+  (let [query '[:find ?person-name
+                :where
+                [?person :person/full-name ?person-name]
+                [(missing $ ?person :person/date-died)]]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort result)
+           '(["Agnetha Fältskog"]
+             ["Anni-Frid Lyngstad"]
+             ["Benny Andersson"]
+             ["Björn Ulvaeus"]
+             ["Brian May"]
+             ["John Deacon"]
+             ["Roger Taylor"])))))
 
 ;; check for aggregate
 ;; check rules

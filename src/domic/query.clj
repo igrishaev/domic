@@ -75,11 +75,43 @@
 (def join-or  (partial join-op :or))
 
 
-(defn- add-predicate
-  [scope expression]
+(defn- add-predicate-missing
+  [{:as scope :keys [table
+                     qb vm qp]}
+   expression]
 
-  (let [{:keys [qb vm sg qp]} scope
-        {:keys [expr]} expression
+  (let [{:keys [expr binding]} expression
+        {:keys [args]} expr
+
+        [bind-tag binding] binding
+
+        [arg-src arg-e arg-a] args
+
+        e (let [[tag e] arg-e]
+            (case tag :var e))
+
+        a (let [[tag a] arg-a]
+            (case tag :cst (let [[tag a] a]
+                             (case tag :kw a))))
+
+        e-var   (vm/get-val vm e)
+        a-param (qp/add-alias qp a)]
+
+    [:not (sql/call :exists
+                    (sql/build
+                     :select 1
+                     :from table
+                     :where [:and
+                             [:= :e e-var]
+                             [:= :a a-param]]
+                     :limit 1))]))
+
+
+(defn- add-predicate-common
+  [{:as scope :keys [qb vm sg qp]}
+   expression]
+
+  (let [{:keys [expr]} expression
         {:keys [pred args]} expr
 
         [pred-tag pred] pred
@@ -96,14 +128,34 @@
                      (let [[tag arg] arg]
                        (let [param (sg "param")]
                          (qp/add-param qp param arg)
-                         (sql/param param)))))))
+                         (sql/param param)))))))]
 
-        pred-expr (into [pred] args*)]
+    (into [pred] args*)))
+
+
+(defn- add-predicate
+  [scope expression]
+
+  (let [{:keys [expr]} expression
+        {:keys [pred]} expr
+
+        [pred-tag pred] pred]
 
     (case pred-tag
       :sym
-      pred-expr
-      ;; else
+
+      (add-predicate-common scope expression)
+
+      #_
+      (case pred
+
+        ;; missing
+        ;; (add-predicate-missing scope expression)
+
+        ;; else
+        #_
+        (add-predicate-common scope expression))
+
       (e/error-case! pred-tag))))
 
 
@@ -156,28 +208,31 @@
 (defn- ->db-func-expression
   [fn args]
 
-  (case fn
+  (let [fn-expr
+        (case fn
 
-    (+ - * /)
-    (->db-func-binary-op fn args)
+          (+ - * /)
+          (->db-func-binary-op fn args)
 
-    mod
-    (->db-func-binary-op (symbol "%") args)
+          mod
+          (->db-func-binary-op (symbol "%") args)
 
-    exp
-    (->db-func-binary-op (symbol "^") args)
+          exp
+          (->db-func-binary-op (symbol "^") args)
 
-    fact
-    (->db-func-unary-op-post "!" args)
+          fact
+          (->db-func-unary-op-post "!" args)
 
-    sqrt
-    (->db-func-unary-op-pre "|/" args)
+          sqrt
+          (->db-func-unary-op-pre "|/" args)
 
-    abs
-    (->db-func-unary-op-pre "@" args)
+          abs
+          (->db-func-unary-op-pre "@" args)
 
-    ;; else
-    (apply sql/call fn args)))
+          ;; else
+          (apply sql/call fn args))]
+
+    (sql/raw ["(" fn-expr ")"])))
 
 
 (defn- add-function-get-else
@@ -270,6 +325,7 @@
       (vm/bind vm binding fn-expr)))
 
   nil)
+
 
 (defn- add-function
   [scope expression]
