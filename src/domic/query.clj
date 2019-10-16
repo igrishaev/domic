@@ -841,7 +841,10 @@
                           (let [[tag arg] arg]
                             (case tag
                               :var
-                              (vm/get-val vm arg)))))]
+                              (vm/get-val vm arg)
+                              :cst
+                              (let [[tag arg] arg]
+                                arg)))))]
         (qb/add-select qb [call alias]))
 
       :var

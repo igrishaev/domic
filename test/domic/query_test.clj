@@ -868,9 +868,61 @@
     (is (= result 6M))))
 
 
-;; check for aggregate
+(deftest test-aggregate-heads-by-creature
+
+  (let [query '[:find ?monster (sum ?heads)
+                :in [[?monster ?heads]]]
+
+        data [["Cerberus" 3]
+              ["Medusa" 1]
+              ["Cyclops" 1]
+              ["Chimera" 1]]
+
+        result (api/q *scope* query data)]
+
+    (is (= (sort result)
+           '(["Cerberus" 3M]
+             ["Chimera" 1M]
+             ["Cyclops" 1M]
+             ["Medusa" 1M])))))
+
+
+(deftest test-aggregate-min-max-avg
+
+  (let [query '[:find ?name (min ?mark) (max ?mark) (avg ?mark)
+                :in [[?name ?mark]]]
+
+        data [["Ivan" 3]
+              ["Ivan" 5]
+              ["Juan" 2]
+              ["Juan" 4.5]
+              ["Ioann" 1.99]]
+
+        result (api/q *scope* query data)]
+
+    (is (= (sort result)
+           '(["Ioann" 1.99 1.99 1.99]
+             ["Ivan" 3.0 5.0 4.0]
+             ["Juan" 2.0 4.5 3.25])))))
+
+
+(deftest test-aggregate-pg-string_agg
+
+  (let [query '[:find (string_agg ?name ",")
+                :in [[?name ?mark]]]
+
+        data [["Ivan" 3]
+              ["Ivan" 5]
+              ["Juan" 2]
+              ["Juan" 4.5]
+              ["Ioann" 1.99]]
+
+        result (api/q *scope* query data)]
+
+    (is (= result '(["Ivan,Ivan,Juan,Juan,Ioann"])))))
+
+
 ;; check rules
 ;; check pull
-;; check with
 ;; check with no an attr in a query
 ;; check foreign table
