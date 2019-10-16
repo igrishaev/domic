@@ -1047,8 +1047,10 @@
 
 
 ;; check rules
-;; check rules required vars
-;; check rules non-required vars
+;; check rules non-required vars get filled
+;; check rule not found
+;; check broken rules passed
+;; check one more rule
 
 ;; check ident/lookups for e/ref only
 
