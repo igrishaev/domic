@@ -957,6 +957,13 @@
       [?country-ref :db/ident ?country]
       [?e :band/website ?website]]
 
+     [(band-info-vars-mapping [?e] ?n ?r ?c ?w)
+      [?e :band/name ?n]
+      [(get-else $ ?e :band/rating 999) ?r]
+      [?e :band/country ?c-ref]
+      [?c-ref :db/ident ?c]
+      [?e :band/website ?w]]
+
      ])
 
 
@@ -989,7 +996,19 @@
     (is (= (drop 1 row)
            ["ABBA" 4.75 "country/sweden" "https://abbasite.com/"]))))
 
-;; missing test ^ for queen
+
+(deftest test-rule-band-fails-for-missing-art
+
+  (let [query '[:find ?band ?name ?rating ?country ?website
+                :in %
+                :where
+                [?band :band/name "Queen"]
+                (band-info ?band ?name ?rating ?country ?website)]
+
+        result (api/q *scope* query rules)]
+
+    (is (= (count result) 0))))
+
 
 (deftest test-rule-band-defaults
 
@@ -1007,8 +1026,29 @@
            '("Queen" 999.0 "country/england" "http://queenonline.com/")))))
 
 
+(deftest test-rule-band-info-var-mapping
+
+  (let [query '[:find ?band ?name ?rating ?country ?website
+                :in %
+                :where
+                [?band :band/name "Queen"]
+                (band-info-vars-mapping
+                 ?band ?name ?rating ?country ?website)]
+
+        result (api/q *scope* query rules)
+        [row] result]
+
+    (is (= (count result) 1))
+    (is (= (drop 1 row)
+           '("Queen" 999.0 "country/england" "http://queenonline.com/")))))
+
 
 ;; check rules
+;; check rules required vars
+;; check rules non-required vars
+
+;; check ident/lookups for e/ref only
+
 ;; check pull
 ;; check with not an attr in a query
 ;; check foreign table

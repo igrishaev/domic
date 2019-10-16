@@ -18,8 +18,6 @@
 
 (defprotocol IVarManager
 
-  (consume [this other])
-
   (bind [this var val])
 
   (bound? [this var])
@@ -35,9 +33,6 @@
   (deref [this] @vars)
 
   IVarManager
-
-  (consume [this other]
-    (reset! vars (merge @other @vars)))
 
   (get-val [this var]
     (if (bound? this var)

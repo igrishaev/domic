@@ -748,6 +748,7 @@
         vm-dst (:vm scope)
         vm-src (vm/manager)
 
+        ;; fill source vm
         _ (doseq [[var-dst [var-src req?]]
                   (u/zip vars-dst vars-src-pairs)]
 
@@ -760,11 +761,17 @@
                 (let [val (vm/get-val vm-dst var-dst)]
                   (vm/bind vm-src var-src val)))))
 
+        ;; process rule's clauses with the new vm
         scope (assoc scope :vm vm-src)
-
         result (process-clauses scope clauses)]
 
-    (vm/consume vm-dst vm-src)
+    ;; backfill destination vm
+    (doseq [[var-dst [var-src req?]]
+            (u/zip vars-dst vars-src-pairs)]
+
+      (let [val (vm/get-val vm-src var-src)]
+        (when-not (vm/bound? vm-dst var-dst)
+          (vm/bind vm-dst var-dst val))))
 
     nil))
 
