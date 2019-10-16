@@ -17,6 +17,12 @@
 (use-fixtures :once fix-test-db)
 
 
+(defmacro with-thrown?
+  [re & body]
+  `(~'is (~'thrown-with-msg?
+          Exception ~re ~@body)))
+
+
 (deftest test-primitive
 
   (let [query '[:find [?name ...]
@@ -69,10 +75,8 @@
                 :where
                 [?person :person/gender :gender/dunno]]]
 
-    (is (thrown-with-msg?
-         Exception #"Lookup failed"
-
-         (api/q *scope* query)))))
+    (with-thrown? #"Lookup failed"
+      (api/q *scope* query))))
 
 
 (deftest test-find-by-multiple-tag
@@ -137,10 +141,8 @@
                 :where
                 [?a :band/dunno ?name]]]
 
-    (is (thrown-with-msg?
-         Exception #"Unknown attrubute"
-
-         (api/q *scope* query)))))
+    (with-thrown? #"Unknown attrubute"
+      (api/q *scope* query))))
 
 
 (deftest test-lookup-in-pattern-error
@@ -149,10 +151,8 @@
                 :where
                 [?band :band/website [:band/name "Queen"]]]]
 
-    (is (thrown-with-msg?
-         Exception #"Cannot parse query"
-
-         (api/q *scope* query)))))
+    (with-thrown? #"Cannot parse query"
+      (api/q *scope* query))))
 
 
 (deftest test-bind-wrong-arity
@@ -164,10 +164,8 @@
                 [?band :band/country ?country]
                 [?band :band/website ?website]]]
 
-    (is (thrown-with-msg?
-         Exception #"IN arity mismatch"
-
-         (api/q *scope* query)))))
+    (with-thrown? #"IN arity mismatch"
+      (api/q *scope* query))))
 
 
 (deftest test-lookup-as-param
@@ -233,10 +231,8 @@
                   AAA :country/england
                   false "rock" {:foo bar} EXTRA)]
 
-    (is (thrown-with-msg?
-         Exception #"Tuple arity mismatch"
-
-         (api/q *scope* query tuple)))))
+    (with-thrown? #"Tuple arity mismatch"
+      (api/q *scope* query tuple))))
 
 
 (deftest test-bind-collection
@@ -421,10 +417,8 @@
                  [3 4 5]
                  [5 6 0]]]
 
-    (is (thrown-with-msg?
-         Exception #"has already been added"
-
-         (api/q *scope* query dataset)))))
+    (with-thrown? #"has already been added"
+      (api/q *scope* query dataset))))
 
 
 (deftest test-dataset-table-mix
@@ -754,10 +748,8 @@
 
     (doseq [q [query1 query2 query3 query4]]
 
-      (is (thrown-with-msg?
-           Exception #"Find/keys arity mismatch"
-
-           (api/q *scope* q))))))
+      (with-thrown? #"Find/keys arity mismatch"
+        (api/q *scope* q)))))
 
 
 (deftest test-with-clause-simple
@@ -1041,6 +1033,17 @@
     (is (= (count result) 1))
     (is (= (drop 1 row)
            '("Queen" 999.0 "country/england" "http://queenonline.com/")))))
+
+
+(deftest test-rule-required-vars-not-bound
+
+  (let [query '[:find ?band ?name ?rating ?country ?website
+                :in %
+                :where
+                (band-info ?band ?name ?rating ?country ?website)]]
+
+    (with-thrown? #"Var \?band is unbound"
+      (api/q *scope* query rules))))
 
 
 ;; check rules
