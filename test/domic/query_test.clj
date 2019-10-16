@@ -922,7 +922,24 @@
     (is (= result '(["Ivan,Ivan,Juan,Juan,Ioann"])))))
 
 
+(deftest test-join-tx-data
+
+  (let [query '[:find ?band ?band ?inst
+                :where
+                [?band :band/name "Queen" ?tx]
+                [?tx :db/txInstant ?inst]]
+
+        result (api/q *scope* query)
+
+        [[band tx inst]] result]
+
+    (is (int? band))
+    (is (int? tx))
+    (is (inst? inst))))
+
+
 ;; check rules
 ;; check pull
-;; check with no an attr in a query
+;; check with not an attr in a query
 ;; check foreign table
+;; check join transaction
