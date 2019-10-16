@@ -1152,3 +1152,10 @@ name site country
 
 #_
 [(get-else src-var ent attr default) ?val-or-default]
+
+
+          pg-type (when attr
+                    (am/db-type am attr))
+
+
+(h/->cast sql pg-type)

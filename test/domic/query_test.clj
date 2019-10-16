@@ -952,8 +952,7 @@
 
      [(band-info-defaults [?e] ?name ?rating ?country ?website)
       [?e :band/name ?name]
-      [(get-else $ ?e :band/rating 0) ?rating]
-      [?e :band/rating ?rating]
+      [(get-else $ ?e :band/rating 999) ?rating]
       [?e :band/country ?country-ref]
       [?country-ref :db/ident ?country]
       [?e :band/website ?website]]
@@ -1004,9 +1003,8 @@
         [row] result]
 
     (is (= (count result) 1))
-
     (is (= (drop 1 row)
-           ["ABBA" 4.75 "country/sweden" "https://abbasite.com/"]))))
+           '("Queen" 999.0 "country/england" "http://queenonline.com/")))))
 
 
 

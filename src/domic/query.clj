@@ -231,7 +231,7 @@
 
 (defn- add-function-get-else
   [{:as scope :keys [table
-                     qb vm qp]}
+                     qb vm qp am]}
    expression]
 
   (let [{:keys [expr binding]} expression
@@ -250,11 +250,13 @@
 
         d (let [[tag d] arg-d]
             (case tag :cst (let [[tag d] d]
-                             (case tag :str d))))
+                             d)))
 
         e-var   (vm/get-val vm e)
         a-param (qp/add-alias qp a)
         d-param (qp/add-alias qp d)
+
+        db-type (am/db-type am a)
 
         sql (sql/build
 
@@ -265,7 +267,7 @@
                 :union
 
                 [(sql/build
-                  :select [[1 :n] :v]
+                  :select [[1 :n] (h/->cast :v db-type)]
                   :from [table]
                   :where [:and
                           [:= :e e-var]
@@ -386,7 +388,7 @@
           field-elem-pairs (u/zip fields elems)
 
           attr (find-attr field-elem-pairs)
-          pg-type (when attr
+          db-type (when attr
                     (am/db-type am attr))
 
           qb-sub (qb/builder)]
@@ -404,7 +406,7 @@
 
               ->cast (fn [sql]
                        (if (and v? attr)
-                         (h/->cast sql pg-type)
+                         (h/->cast sql db-type)
                          sql))
 
               alias-sub-field (-> (sql/qualify alias-sub field)
