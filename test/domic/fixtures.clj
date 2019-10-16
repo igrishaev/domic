@@ -36,6 +36,10 @@
     :db/valueType   :db.type/ref
     :db/cardinality :db.cardinality/one}
 
+   {:db/ident       :person/roles
+    :db/valueType   :db.type/string
+    :db/cardinality :db.cardinality/many}
+
    ;; band
    {:db/ident       :band/name
     :db/valueType   :db.type/string
@@ -99,22 +103,26 @@
    {:db/id "Brian May"
     :person/full-name "Brian May"
     :person/date-born #inst "1947-07-19"
+    :person/roles ["guitar" "vocal"]
     :person/gender :gender/male}
 
    {:db/id "Roger Taylor"
     :person/full-name "Roger Taylor"
     :person/date-born #inst "1949-07-26"
+    :person/roles ["drums" "vocal"]
     :person/gender :gender/male}
 
    {:db/id "Freddie Mercury"
     :person/full-name "Freddie Mercury"
     :person/date-born #inst "1946-09-05"
     :person/date-died #inst "1991-11-24"
+    :person/roles ["vocal"]
     :person/gender :gender/male}
 
    {:db/id "John Deacon"
     :person/full-name "John Deacon"
     :person/date-born #inst "1951-08-19"
+    :person/roles ["bass"]
     :person/gender :gender/male}
 
    {:band/name "Queen"

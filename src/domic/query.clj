@@ -1006,8 +1006,6 @@
         {where-clauses :clauses} where
         {with-vars :vars} with
 
-        ;; {:keys [keys-kw keys]} keys
-
         find-type (get-find-type find-spec)]
 
     (sm/add-source sm const/src-default (src/table table))

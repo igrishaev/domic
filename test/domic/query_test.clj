@@ -760,7 +760,7 @@
            (api/q *scope* q))))))
 
 
-(deftest test-with-simple
+(deftest test-with-clause-simple
 
   (let [query '[:find ?gender-ident
                 :with ?person
@@ -775,6 +775,86 @@
            #{["gender/male"] ["gender/female"]}))))
 
 
+(deftest test-no-with-clause-items-distinct
+
+  (let [query '[:find ?role
+                :where
+                [?band :band/name "Queen"]
+                [?band :band/members ?person]
+                [?person :person/roles ?role]]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort result)
+           '(["bass"] ["drums"] ["guitar"] ["vocal"])))))
+
+
+(deftest test-with-clause-items-duplicate
+
+  (let [query '[:find ?role
+                :with ?person
+                :where
+                [?band :band/name "Queen"]
+                [?band :band/members ?person]
+                [?person :person/roles ?role]]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort result)
+           '(["bass"] ["drums"] ["guitar"]
+             ["vocal"] ["vocal"] ["vocal"])))))
+
+
+(deftest test-aggregate-role
+
+  (let [query '[:find (count ?role) .
+                :where
+                [?band :band/name "Queen"]
+                [?band :band/members ?person]
+                [?person :person/roles ?role]]
+
+        result (api/q *scope* query)]
+
+    (is (= result 6))))
+
+
+(deftest test-aggregate-role-by-person
+
+  (let [query '[:find (count ?role) ?name
+                :where
+                [?band :band/name "Queen"]
+                [?band :band/members ?person]
+                [?person :person/roles ?role]
+                [?person :person/full-name ?name]]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort result)
+           '([1 "Freddie Mercury"]
+             [1 "John Deacon"]
+             [2 "Brian May"]
+             [2 "Roger Taylor"])))))
+
+
+(deftest test-aggregate-heads
+
+  ;; https://docs.datomic.com/on-prem/query.html#with
+
+  (let [query '[:find (sum ?heads) .
+                :in [[_ ?heads]]]
+
+        data [["Cerberus" 3]
+              ["Medusa" 1]
+              ["Cyclops" 1]
+              ["Chimera" 1]]
+
+        result (api/q *scope* query data)]
+
+    (is (= result 6)))
+
+
+
+  )
 
 
 ;; check for aggregate
