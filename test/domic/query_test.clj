@@ -836,6 +836,21 @@
              [2 "Roger Taylor"])))))
 
 
+(deftest test-find-with-no-from-with-dataset
+
+  (let [query '[:find [?heads ...]
+                :in [[_ ?heads]]]
+
+        data [["Cerberus" 3]
+              ["Medusa" 1]
+              ["Cyclops" 1]
+              ["Chimera" 1]]
+
+        result (api/q *scope* query data)]
+
+    (is (= (sort result) '[1 3]))))
+
+
 (deftest test-aggregate-heads
 
   ;; https://docs.datomic.com/on-prem/query.html#with
@@ -850,11 +865,7 @@
 
         result (api/q *scope* query data)]
 
-    (is (= result 6)))
-
-
-
-  )
+    (is (= result 6M))))
 
 
 ;; check for aggregate
@@ -862,3 +873,4 @@
 ;; check pull
 ;; check with
 ;; check with no an attr in a query
+;; check foreign table

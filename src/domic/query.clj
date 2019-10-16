@@ -486,8 +486,11 @@
 
             :var
             (if (vm/bound? vm elem)
-              (let [where [:= alias-fq (vm/get-val vm elem)]]
+
+              (let [val (vm/get-val vm elem)
+                    where [:= alias-fq val]]
                 (qb/add-where qb where))
+
               (vm/bind vm elem alias-fq))
 
             :blank nil
@@ -856,6 +859,23 @@
     tag))
 
 
+(let [var? (partial s/valid? (s/tuple #{:var} ::sd/variable))]
+
+  (defn- fix-missing-vars
+    [{:as scope :keys [qb vm]}
+     items]
+    (clojure.walk/prewalk
+     (fn [x]
+       (if (var? x)
+         (let [[_ var] x
+               val (vm/get-val vm var)]
+           (when-let [src (-> val meta :src)]
+             (qb/add-from? qb src))
+           nil)
+         x))
+     items)))
+
+
 (defn- process-find
   [{:as scope :keys [vm qb]}
    find-spec with-vars]
@@ -875,6 +895,8 @@
                           (:coll :scalar)
                           (let [{:keys [elem]} find-spec]
                             [elem])))
+
+        _ (fix-missing-vars scope find-elem-list)
 
         aggs? (map find-elem-agg? find-elem-list)
         group? (some identity aggs?)]
