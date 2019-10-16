@@ -976,6 +976,13 @@
       [?c-ref :db/ident ?c]
       [?e :band/website ?w]]
 
+     [(get-band-names ?name)
+      [_ :band/name ?name]]
+
+     [(is-alive? [?p] ?pname)
+      [(missing? $ ?p :person/date-died)]
+      [?p :person/full-name ?pname]]
+
      ])
 
 
@@ -1066,11 +1073,55 @@
       (api/q *scope* query rules))))
 
 
-;; check rules
-;; check rules non-required vars get filled
-;; check rule not found
-;; check broken rules passed
-;; check one more rule
+(deftest test-rule-not-found
+
+  (let [query '[:find ?band
+                :in %
+                :where
+                (dunno ?band)]]
+
+    (with-thrown? #"No such a rule: dunno"
+      (api/q *scope* query rules))))
+
+
+(deftest test-rule-broken-rules-passed
+
+  (let [query '[:find ?band
+                :in %
+                :where
+                (dunno ?band)]]
+
+    (with-thrown? #"Wrong rules"
+      (api/q *scope* query [:foo {:bar "AAA"}]))))
+
+
+(deftest test-rule-non-required-var-get-bound-from-inside
+
+  (let [query '[:find ?name
+                :in %
+                :where
+                (get-band-names ?name)]
+
+        result (api/q *scope* query rules)]
+
+    (is (= (sort result)
+           [["ABBA"] ["Queen"]]))))
+
+
+(deftest test-rule-missing-attribute
+
+  (let [query '[:find [?pname ...]
+                :in %
+                :where
+                [?b :band/name "Queen"]
+                [?b :band/members ?p]
+                (is-alive? ?p ?pname)]
+
+        result (api/q *scope* query rules)]
+
+    (is (= (sort result)
+           ["Brian May" "John Deacon" "Roger Taylor"]))))
+
 
 ;; check ident/lookups for e/ref only
 
