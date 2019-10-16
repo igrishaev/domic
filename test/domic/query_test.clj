@@ -531,26 +531,46 @@
 
 
 ;; todo
-;; coerce attr type
 ;; check source var
-(deftest test-function-get-some-no-coerce!
+
+(deftest test-function-get-some-default-nil
 
   (let [query '[:find ?person-name ?date-died
+                :in ?default
                 :where
                 [?person :person/full-name ?person-name]
-                [(get-else $ ?person :person/date-died "N/A") ?date-died]]
+                [(get-else $ ?person :person/date-died ?default) ?date-died]]
 
-        result (api/q *scope* query)]
+        result (api/q *scope* query nil)
 
-    (is (= (sort result)
-           '(["Agnetha Fältskog" "N/A"]
-             ["Anni-Frid Lyngstad" "N/A"]
-             ["Benny Andersson" "N/A"]
-             ["Björn Ulvaeus" "N/A"]
-             ["Brian May" "N/A"]
-             ["Freddie Mercury" "1991-11-24 02:00:00+02"]
-             ["John Deacon" "N/A"]
-             ["Roger Taylor" "N/A"])))))
+        ->millis (fn [value]
+                   (when value
+                     (.getTime ^java.util.Date value)))]
+
+    (is (= (->> result sort
+                (map #(update % 1 ->millis)))
+
+           '(["Agnetha Fältskog"   nil]
+             ["Anni-Frid Lyngstad" nil]
+             ["Benny Andersson"    nil]
+             ["Björn Ulvaeus"      nil]
+             ["Brian May"          nil]
+             ["Freddie Mercury"    690940800000]
+             ["John Deacon"        nil]
+             ["Roger Taylor"       nil])))))
+
+
+(deftest test-function-get-some-default-wrong-type
+
+  (let [query '[:find ?person-name ?date-died
+                :in ?default
+                :where
+                [?person :person/full-name ?person-name]
+                [(get-else $ ?person :person/date-died ?default) ?date-died]]]
+
+    (with-thrown? #"ERROR: UNION types .+ cannot be matched"
+      (api/q *scope* query "N/A"))))
+
 
 ;; todo
 ;; check src var

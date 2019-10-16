@@ -249,12 +249,13 @@
                              (case tag :kw a))))
 
         d (let [[tag d] arg-d]
-            (case tag :cst (let [[tag d] d]
-                             d)))
+            (case tag
+              :var (vm/get-val vm d)
+              :cst (let [[tag d] d]
+                     (qp/add-alias qp d))))
 
         e-var   (vm/get-val vm e)
         a-param (qp/add-alias qp a)
-        d-param (qp/add-alias qp d)
 
         db-type (am/db-type am a)
 
@@ -274,7 +275,7 @@
                           [:= :a a-param]])
 
                  (sql/build
-                  :select [[2 :n] d-param]
+                  :select [[2 :n] d]
                   :from [table]
                   :where [:= :e e-var])]
 
