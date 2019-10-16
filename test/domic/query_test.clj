@@ -938,8 +938,79 @@
     (is (inst? inst))))
 
 
+(def rules
+    '
+    [[(queen? ?e)
+      [?e :band/name "Queen"]]
+
+     [(band-info [?e] ?name ?rating ?country ?website)
+      [?e :band/name ?name]
+      [?e :band/rating ?rating]
+      [?e :band/country ?country-ref]
+      [?country-ref :db/ident ?country]
+      [?e :band/website ?website]]
+
+     [(band-info-defaults [?e] ?name ?rating ?country ?website)
+      [?e :band/name ?name]
+      [(get-else $ ?e :band/rating 0) ?rating]
+      [?e :band/rating ?rating]
+      [?e :band/country ?country-ref]
+      [?country-ref :db/ident ?country]
+      [?e :band/website ?website]]
+
+     ])
+
+
+(deftest test-rule-simple
+
+  (let [query '[:find ?band-name
+                :in %
+                :where
+                [?band :band/name ?band-name]
+                (queen? ?band)]
+
+        result (api/q *scope* query rules)]
+
+    (is (= result [["Queen"]]))))
+
+
+(deftest test-rule-band-info
+
+  (let [query '[:find ?band ?name ?rating ?country ?website
+                :in %
+                :where
+                [?band :band/name "ABBA"]
+                (band-info ?band ?name ?rating ?country ?website)]
+
+        result (api/q *scope* query rules)
+        [row] result]
+
+    (is (= (count result) 1))
+
+    (is (= (drop 1 row)
+           ["ABBA" 4.75 "country/sweden" "https://abbasite.com/"]))))
+
+;; missing test ^ for queen
+
+(deftest test-rule-band-defaults
+
+  (let [query '[:find ?band ?name ?rating ?country ?website
+                :in %
+                :where
+                [?band :band/name "Queen"]
+                (band-info-defaults ?band ?name ?rating ?country ?website)]
+
+        result (api/q *scope* query rules)
+        [row] result]
+
+    (is (= (count result) 1))
+
+    (is (= (drop 1 row)
+           ["ABBA" 4.75 "country/sweden" "https://abbasite.com/"]))))
+
+
+
 ;; check rules
 ;; check pull
 ;; check with not an attr in a query
 ;; check foreign table
-;; check join transaction
