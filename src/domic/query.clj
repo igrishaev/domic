@@ -401,6 +401,7 @@
 
         (let [[tag elem] elem*
               v? (= field :v)
+              e? (= field :e)
 
               ->cast (fn [sql]
                        (if (and v? attr)
@@ -421,7 +422,9 @@
 
               ;; Special case: when a value is a keyword,
               ;; treat it like an ident (find by :db/ident).
-              (if (and v? (= tag :kw))
+              ;; TODO: check only for ref v
+              (if (and (or e? v?)
+                       (= tag :kw))
 
                 (let [e* (rt/resolve-lookup! scope [:db/ident v])
                       where [:= alias-fq e*]]

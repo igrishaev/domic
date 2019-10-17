@@ -73,6 +73,17 @@
     (is (= (sort result) '("ABBA")))))
 
 
+(deftest test-ident-for-entity
+
+  (let [query '[:find ?band-name
+                :where
+                [:queen :band/name ?band-name]]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort result) '(["Queen"])))))
+
+
 (deftest test-ident-missing
 
   (let [query '[:find [?person ...]
@@ -1139,8 +1150,8 @@
         result (api/q *scope* query)
         a-set (set (map second result))]
 
-    (is (= (count result) 10))
-    (is (= a-set #{"band/name" "band/genres"
+    (is (= (count result) 11))
+    (is (= a-set #{"band/name" "band/genres" "db/ident"
                    "band/country" "band/members"
                    "band/date-from" "band/website"}))
 
@@ -1188,6 +1199,9 @@
     (is (= ?bigint 999M))
     (is (= ?float 9.99))
     (is (zero? (compare ?inst #inst "2033")))))
+
+
+;; query table by a keyword, symbol and other types
 
 
 ;; check nested rules

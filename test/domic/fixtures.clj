@@ -125,7 +125,8 @@
     :person/roles ["bass"]
     :person/gender :gender/male}
 
-   {:band/name "Queen"
+   {:db/ident :queen
+    :band/name "Queen"
     :band/country :country/england
     :band/website "http://queenonline.com/"
     :band/date-from #inst "1970"
