@@ -3,6 +3,7 @@
    [domic.engine :as en]
    [domic.attr-manager :as am]
 
+   [domic.sql-helpers :as h]
    [domic.init :as init]
    [domic.transact :as transact]
    [domic.pull :as pull]
@@ -68,6 +69,9 @@
 (defn transact
   [scope tx-data]
   (transact/transact scope tx-data))
+
+
+(def ->ident h/ident->lookup)
 
 
 #_
