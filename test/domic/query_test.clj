@@ -197,7 +197,7 @@
 
         result (api/q *scope* query
                       [:band/name "Queen"]
-                      :country/england
+                      #db/ident :country/england
                       "rock")]
 
     (is (= result '(["http://queenonline.com/"])))))
@@ -214,7 +214,8 @@
 
         ;; add some trash
         tuple '(1 [:band/name "Queen"]
-                  AAA :country/england
+                  AAA
+                  #db/ident :country/england
                   false "rock" {:foo bar})
 
         result (api/q *scope* query tuple)]
@@ -232,7 +233,8 @@
                 [?band :band/website ?website]]
 
         tuple '(1 [:band/name "Queen"]
-                  AAA :country/england
+                  AAA
+                  #db/ident :country/england
                   false "rock" {:foo bar} EXTRA)]
 
     (with-thrown? #"Tuple arity mismatch"
@@ -266,9 +268,9 @@
                 [?band :band/members ?member]
                 [?band :band/name ?name]]
 
-        rel '[[:country/england [:person/full-name "Brian May"]       dunno]
-              [:country/sweden  [:person/full-name "Benny Andersson"] nil]
-              [100500           99998888                              AAA]]
+        rel '[[#db/ident :country/england [:person/full-name "Brian May"]       dunno]
+              [#db/ident :country/sweden  [:person/full-name "Benny Andersson"] nil]
+              [100500                     99998888                              AAA]]
 
         result (api/q *scope* query rel)]
 
@@ -1123,7 +1125,8 @@
 
         result (api/q *scope* query rules)]
 
-    (is (= (sort result)))))
+    (is (= (sort result)
+           '("Brian May" "John Deacon" "Roger Taylor")))))
 
 
 (deftest test-attr-not-specified
@@ -1186,6 +1189,7 @@
     (is (= ?float 9.99))
     (is (zero? (compare ?inst #inst "2033")))))
 
+
 ;; check nested rules
 
 ;; check ident/lookups for e/ref only
@@ -1197,5 +1201,4 @@
 ;; get-else var from CTE
 ;; missing source var
 
-;; check other types: keyword, symbol, UUID, URI, etc
 ;; check bytes

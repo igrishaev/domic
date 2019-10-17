@@ -35,7 +35,7 @@
     (qb/add-where  qb [:= (->cast :v db-type) param-v])
     (qb/set-limit  qb 1)
 
-    (-> (->> (qp/get-params qp)
+    (-> (->> @qp
              (qb/format qb)
              (en/query en))
         first :e)))

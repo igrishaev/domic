@@ -8,14 +8,15 @@
 
   (add-alias [this value])
 
-  (add-param [this field value])
+  (add-param [this field value]))
 
-  (get-params [this]))
+
+(def ts-type "timestamp with time zone")
 
 
 (defn ->cast-timestamp
   [value]
-  (sql/call :cast value (sql/inline "timestamp with time zone")))
+  (sql/call :cast value (sql/inline ts-type)))
 
 
 (defrecord QueryParams
@@ -39,10 +40,7 @@
 
     ;; todo: drop add-param method
     (add-param [this field value]
-      (swap! params assoc field value))
-
-    (get-params [this]
-      @params))
+      (swap! params assoc field value)))
 
 
 (defn params []

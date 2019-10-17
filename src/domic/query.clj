@@ -520,13 +520,10 @@
 (defn- resolve*
   [scope param]
   (cond
+
     ;; resolve if lookup
     (h/lookup? param)
     (rt/resolve-lookup! scope param)
-
-    ;; resolve ident
-    (h/ident-id? param)
-    (rt/resolve-lookup! scope (h/ident->lookup param))
 
     :else param))
 
