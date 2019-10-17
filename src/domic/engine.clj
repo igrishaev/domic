@@ -6,6 +6,8 @@
    [clojure.java.jdbc :as jdbc]
    [honeysql.core :as sql])
   (:import
+   java.sql.Timestamp
+   java.net.URI
    java.util.Date
    [clojure.lang Keyword Symbol]))
 
@@ -71,7 +73,11 @@
 
   Date
   (sql-value [val]
-    (new java.sql.Timestamp (.getTime val)))
+    (new Timestamp (.getTime val)))
+
+  URI
+  (sql-value [val]
+    (str val))
 
   Symbol
 

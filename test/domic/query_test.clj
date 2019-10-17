@@ -1162,18 +1162,29 @@
                99
                999M
                9.99
-               #inst "2099"
+               #inst "2033"
                #uuid "6eb0f888-6479-4631-b514-f1fc2c1077a6"
-               (new URI "http://test.com/?foo=bar")]
-              ]
+               (new URI "http://test.com/?foo=bar")]]
 
-        result (api/q *scope* query data)]
+        result (api/q *scope* query data)
 
-    (is (= result 1)))
+        [row] result
+
+        [?kw ?sym ?str ?bool
+         ?long ?bigint ?float
+         ?inst ?uuid ?uri] row]
 
 
+    (is (= (count result) 1))
 
-  )
+    (is (= ?kw "keyword"))
+    (is (= ?sym "symbol"))
+    (is (= ?str "string"))
+    (is (= ?bool true))
+    (is (= ?long 99))
+    (is (= ?bigint 999M))
+    (is (= ?float 9.99))
+    (is (zero? (compare ?inst #inst "2033")))))
 
 ;; check nested rules
 

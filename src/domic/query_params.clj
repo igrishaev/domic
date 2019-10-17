@@ -13,27 +13,36 @@
   (get-params [this]))
 
 
+(defn ->cast-timestamp
+  [value]
+  (sql/call :cast value (sql/inline "timestamp with time zone")))
+
+
 (defrecord QueryParams
     [params]
 
-  clojure.lang.IDeref
+    clojure.lang.IDeref
 
-  (deref [this]
-    @params)
+    (deref [this]
+      @params)
 
-  IQueryParams
+    IQueryParams
 
-  (add-alias [this value]
-    (let [alias (gensym "$")
-          param (sql/param alias)]
-      (add-param this alias value)
-      param))
+    (add-alias [this value]
+      (let [alias (gensym "$")
+            param (sql/param alias)
+            param (if (inst? value)
+                    (->cast-timestamp param)
+                    param)]
+        (add-param this alias value)
+        param))
 
-  (add-param [this field value]
-    (swap! params assoc field value))
+    ;; todo: drop add-param method
+    (add-param [this field value]
+      (swap! params assoc field value))
 
-  (get-params [this]
-    @params))
+    (get-params [this]
+      @params))
 
 
 (defn params []
