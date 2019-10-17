@@ -28,10 +28,6 @@
 
 ;; todo
 
-;; fix find tupe
-
-;; process with
-;; process maps
 ;; deal with pull pattern
 ;; detect idents only for e and v/ref
 
@@ -43,7 +39,8 @@
 ;; tx-data
 ;; untuple
 
-;; rest of aggregates
+;; auto-sync attrs?
+;; tx doc when transact
 
 
 (declare process-clauses)

@@ -5,7 +5,11 @@
             run-tests]]
 
    [domic.fixtures :refer [fix-test-db *scope*]]
-   [domic.api :as api]))
+   [domic.api :as api])
+
+  (:import
+   (java.util UUID Date)
+   java.net.URI))
 
 
 ;; todo
@@ -1119,12 +1123,68 @@
 
         result (api/q *scope* query rules)]
 
-    (is (= (sort result)
-           ["Brian May" "John Deacon" "Roger Taylor"]))))
+    (is (= (sort result)))))
 
+
+(deftest test-attr-not-specified
+
+  (let [query '[:find ?e ?a ?v
+                :where
+                [?e :band/name "Queen"]
+                [?e ?a ?v]]
+
+        result (api/q *scope* query)
+        a-set (set (map second result))]
+
+    (is (= (count result) 10))
+    (is (= a-set #{"band/name" "band/genres"
+                   "band/country" "band/members"
+                   "band/date-from" "band/website"}))
+
+    (is (every? string? (map peek result)))))
+
+
+(deftest test-types-coercion
+
+  (let [query '[:find ?kw ?sym ?str ?bool
+                      ?long ?bigint ?float
+                      ?inst ?uuid ?uri
+
+                :in [[?kw ?sym ?str ?bool
+                      ?long ?bigint ?float
+                      ?inst ?uuid ?uri
+                      ]]]
+
+        data [[:keyword
+               'symbol
+               "string"
+               true
+               99
+               999M
+               9.99
+               #inst "2099"
+               #uuid "6eb0f888-6479-4631-b514-f1fc2c1077a6"
+               (new URI "http://test.com/?foo=bar")]
+              ]
+
+        result (api/q *scope* query data)]
+
+    (is (= result 1)))
+
+
+
+  )
+
+;; check nested rules
 
 ;; check ident/lookups for e/ref only
 
 ;; check pull
 ;; check with not an attr in a query
 ;; check foreign table
+
+;; get-else var from CTE
+;; missing source var
+
+;; check other types: keyword, symbol, UUID, URI, etc
+;; check bytes
