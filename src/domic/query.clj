@@ -389,6 +389,9 @@
           db-type (when attr
                     (am/db-type am attr))
 
+          ref? (when attr
+                 (am/ref? am attr))
+
           qb-sub (qb/builder)]
 
       (qb/set-distinct qb-sub)
@@ -421,9 +424,9 @@
             (let [[tag v] elem]
 
               ;; Special case: when a value is a keyword,
-              ;; treat it like an ident (find by :db/ident).
-              ;; TODO: check only for ref v
-              (if (and (or e? v?)
+              ;; treat it like an ident (find by :db/ident),
+              ;; but only for E and V(ref).
+              (if (and (or e? (and v? ref?))
                        (= tag :kw))
 
                 (let [e* (rt/resolve-lookup! scope [:db/ident v])

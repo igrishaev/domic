@@ -41,6 +41,11 @@
     :db/cardinality :db.cardinality/many}
 
    ;; band
+
+   {:db/ident       :band/code
+    :db/valueType   :db.type/keyword
+    :db/cardinality :db.cardinality/one}
+
    {:db/ident       :band/name
     :db/valueType   :db.type/string
     :db/cardinality :db.cardinality/one
@@ -160,6 +165,7 @@
     :person/gender :gender/male}
 
    {:band/name "ABBA"
+    :band/code :band-abba
     :band/rating 4.75
     :band/country :country/sweden
     :band/website "https://abbasite.com/"

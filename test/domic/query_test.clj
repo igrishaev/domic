@@ -1201,6 +1201,19 @@
     (is (zero? (compare ?inst #inst "2033")))))
 
 
+(deftest test-query-by-keyword-inline
+
+  (let [query '[:find ?name
+                :where
+                [?band :band/code :band-abba]
+                [?band :band/name ?name]]
+
+        result (api/q *scope* query)]
+
+    (is (= (sort result) '(["ABBA"])))))
+
+
+
 ;; query table by a keyword, symbol and other types
 
 
