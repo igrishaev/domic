@@ -3,6 +3,7 @@
    [domic.engine :as en]
    [domic.attr-manager :as am]
 
+   [domic.source :as src]
    [domic.sql-helpers :as h]
    [domic.init :as init]
    [domic.transact :as transact]
@@ -71,7 +72,14 @@
   (transact/transact scope tx-data))
 
 
-(def ->ident h/ident->lookup)
+(defn ->ident
+  [kwrd]
+  (h/ident->lookup kwrd))
+
+
+(defn table
+  [table-name]
+  (src/table table-name))
 
 
 #_

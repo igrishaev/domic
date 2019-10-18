@@ -370,8 +370,7 @@
 
   (add-pattern-db [src scope expression]
 
-    (let [{:keys [table
-                  qb sg vm qp am]} scope
+    (let [{:keys [qb sg vm qp am]} scope
 
           add-param (partial qp/add-alias qp)
 
@@ -379,6 +378,8 @@
           fields (src/get-fields src)
 
           {:keys [elems]} expression
+
+          table (src/get-alias src)
 
           alias-sub (sg "sub")
           alias-table :d

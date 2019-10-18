@@ -5,6 +5,7 @@
             run-tests]]
 
    [domic.fixtures :refer [fix-test-db *scope*]]
+   [domic.engine :as en]
    [domic.api :as api])
 
   (:import
@@ -1213,16 +1214,51 @@
     (is (= (sort result) '(["ABBA"])))))
 
 
+(deftest test-foreign-table-move-data
 
-;; query table by a keyword, symbol and other types
+  (let [tab2-name (keyword (gensym "__datoms__"))
+        tab2 (api/table tab2-name)
+        {:keys [en table]} *scope*]
 
+    (en/execute en (format "CREATE TABLE %s AS TABLE %s"
+                           (name tab2-name) (name table)))
+
+    (en/execute en (format "truncate TABLE %s" (name table)))
+
+    ;; query the old empty table
+    (let [query '[:find ?name
+                  :where
+                  [?band :band/code :band-abba]
+                  [?band :band/name ?name]]
+
+          result (api/q *scope* query)]
+
+      (is (empty? result)))
+
+    ;; query new table
+    (let [query '[:find ?name
+                  :in $tab2
+                  :where
+                  [$tab2 ?band :band/code :band-abba]
+                  [$tab2 ?band :band/name ?name]]
+
+          result (api/q *scope* query tab2)]
+
+      (is (= result [["ABBA"]])))
+
+    ;; restore the old table
+    (en/execute en (format "insert into %s select * from %s"
+                           (name table) (name tab2-name)))))
+
+
+
+
+
+;; query table by symbol and other types
 
 ;; check nested rules
 
-;; check ident/lookups for e/ref only
-
 ;; check pull
-;; check with not an attr in a query
 ;; check foreign table
 
 ;; get-else var from CTE

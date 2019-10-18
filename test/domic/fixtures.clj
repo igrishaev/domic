@@ -191,7 +191,7 @@
 
 (defn fix-test-db [t]
 
-  (let [opt {:prefix "_tests14_"
+  (let [opt {:prefix "_tests15_"
              :debug? true}]
 
     (binding [*scope* (api/->scope db-spec opt)]
@@ -208,9 +208,12 @@
       (let [{:keys [en
                     table
                     table-log
-                    table-seq]} *scope*]
+                    table-seq]} *scope*
 
-        (en/execute en (format "drop table %s" (name table)))
-        (en/execute en (format "drop table %s" (name table-log)))
-        (en/execute en (format "drop sequence %s"
-                               (name table-seq)))))))
+            queries
+            [(format "drop table %s" (name table))
+             (format "drop table %s" (name table-log))
+             (format "drop sequence %s" (name table-seq))]]
+
+        (doseq [query queries]
+          (en/execute en query))))))

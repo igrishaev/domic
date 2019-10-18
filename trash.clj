@@ -1159,3 +1159,19 @@ name site country
 
 
 (h/->cast sql pg-type)
+
+
+(defn fix-clone-table
+  [t]
+
+  (let [{:keys [en table]} *scope*
+
+        query-clone
+        (format "CREATE TABLE foo_bar AS TABLE %s"
+                (name table))
+
+        query-drop "DROP TABLE foo_bar"]
+
+    (en/execute en query-clone)
+    (t)
+    (en/execute en query-drop)))
