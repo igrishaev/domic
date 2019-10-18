@@ -1236,23 +1236,27 @@
       (is (empty? result)))
 
     ;; query new table
-    (let [query '[:find ?name
-                  :in $tab2
+    (let [query '[:find ?name ?number
+                  :in $tab2 $data
                   :where
                   [$tab2 ?band :band/code :band-abba]
-                  [$tab2 ?band :band/name ?name]]
+                  [$tab2 ?band :band/name ?name]
+                  [$data ?number ?name]]
 
-          result (api/q *scope* query tab2)]
+          dataset [[1 "Queen"]
+                   [2 "ABBA"]
+                   [3 "Korn"]]
 
-      (is (= result [["ABBA"]])))
+          result (api/q *scope* query tab2 dataset)]
+
+      (is (= result '(["ABBA" 2]))))
 
     ;; restore the old table
     (en/execute en (format "insert into %s select * from %s"
                            (name table) (name tab2-name)))))
 
 
-
-
+;; source for missing and get-else
 
 ;; query table by symbol and other types
 
