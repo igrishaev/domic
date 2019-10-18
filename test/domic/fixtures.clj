@@ -191,7 +191,7 @@
 
 (defn fix-test-db [t]
 
-  (let [opt {:prefix "_tests15_"
+  (let [opt {:prefix "_tests16_"
              :debug? true}]
 
     (binding [*scope* (api/->scope db-spec opt)]
