@@ -1,5 +1,7 @@
 (ns domic.transact
   (:require
+   [clojure.set :as set]
+
    [domic.const :as const]
    [domic.sql-helpers :as h]
    [domic.util :as util]
@@ -21,7 +23,7 @@
 ;; check history attrib
 ;; process functions
 
-
+#_
 (defn prepare-tx-data
   [{:as scope :keys [am]}
    tx-data]
@@ -62,7 +64,7 @@
     {:datoms (persistent! datoms*)
      :tx-fns (persistent! tx-fns*)}))
 
-
+#_
 (defn collect-datoms-info
   [{:as scope :keys [am]}
    datoms]
@@ -113,13 +115,13 @@
      (persistent! avs*)
      (persistent! tmp*)]))
 
-
+#_
 (defn pull-idents
   [{:as scope :keys [am]}
    ids avs]
   (p/-pull*-idents scope ids avs))
 
-
+#_
 (defn fix-datoms
   [{:as scope :keys [am]}
    datoms pull fn-id]
@@ -228,14 +230,14 @@
       (doall (for [[op e a v] datoms*]
                [op (cswap e) a v])))))
 
-
+#_
 (defn validate-attrs!
   [{:as scope :keys [am]}
    datoms]
   (let [attrs (mapv #(get % 2) datoms)]
      (am/validate-many! am attrs)))
 
-
+#_
 (defn transact
   [{:as scope :keys [table
                      table-log
@@ -420,3 +422,145 @@
              @qp)))
 
         nil))))
+
+
+(def into-map (partial into {}))
+
+
+(defn- resolve*
+  [scope param]
+  (cond
+
+    (h/lookup? param)
+    (rt/resolve-lookup! scope param)
+
+    (h/ident-id? param)
+    (rt/resolve-lookup! scope [:db/ident param])
+
+    ;; (h/temp-id? param)
+
+    :else param))
+
+
+(defn transact
+  [{:as scope :keys [am en
+                     table]}
+   tx-maps]
+
+  (let [t (rt/allocate-id scope)
+
+        qp (qp/params)
+        add-param (partial qp/add-alias qp)
+
+        ]
+
+    (doseq [tx-map tx-maps]
+
+      (let [to-insert* (transient [])
+            +insert (fn [& args]
+                      (conj! to-insert* (mapv add-param args)))
+
+            to-update* (transient [])
+            +update (fn [& args]
+                      (conj! to-update* (mapv add-param args)))
+
+
+            tx-map (into-map
+                    (for [[a v] tx-map]
+                      (if (or (= a :db/id)
+                              (am/ref? am a))
+                        [a (resolve* scope v)]
+                        [a v])))
+
+            e (or (get tx-map :db/id)
+                  (str (gensym "id")))
+
+            tx-map (dissoc tx-map :db/id)
+
+            ;; unique-pairs
+            ;; (for [[a v] tx-map]
+
+            ;;   (when (am/unique? am a)
+            ;;     (when-let [e* (resolve* scope v scope [a v])]
+            ;;       (cond
+
+            ;;         (am/unique-identity? am a)
+            ;;         [e* :identity]
+
+            ;;         (am/unique-value? am a)
+            ;;         [e* :value]
+
+            ;;         :else
+            ;;         (e/error! "Wrong unique attribute: %s" a)))))
+
+            ;; unique-map (into-map (filter some? unique-pairs))
+
+            ;; eids (-> (keys unique-map)
+            ;;          (concat (when (h/real-id? e) [e]))
+            ;;          (set))
+
+            ;; _ (when (> (count eids) 1)
+            ;;     (e/error! "Uniqueness conflict: %s" tx-map))
+
+            ;; e (cond
+
+            ;;     (and (h/temp-id? e) (seq unique-map))
+            ;;     (ffirst unique-map)
+
+            ;;     :else e)
+
+            ]
+
+        (cond
+
+          (h/temp-id? e)
+          (let [e* (rt/allocate-id scope)]
+            (doseq [[a v] tx-map]
+              (if (am/multiple? am a)
+                (doseq [v v]
+                  (+insert e* a v t))
+                (+insert e* a v t))))
+
+          (h/real-id? e)
+          ;; transaction
+          ;; for update
+          (let [p (p/pull scope '[*] e)]
+            (doseq [[a v] tx-map]
+
+              (if (contains? p a)
+
+                (if (am/multiple? am a)
+
+                  (let [v-new (set v)
+                        v-old (set (get p a))
+                        v-add (set/difference v-new v-old)]
+                    (doseq [v* v-add]
+                      (+insert e a v* t)))
+
+                  (+update e a (get p a) v))
+
+                (if (am/multiple? am a)
+                  (doseq [v v]
+                    (+insert e a v t))
+                  (+insert e a v t)))))
+
+          :else (e/error! "Weird id: %s" e))
+
+        (when-let [to-insert (-> to-insert* persistent! seq)]
+          (en/execute-map
+           en {:insert-into table
+               :columns [:e :a :v :t]
+               :values to-insert}
+           @qp))
+
+        (when-let [to-update (-> to-update* persistent! seq)]
+          (doseq [[e a v v*] to-update]
+            (en/execute-map
+             en {:update table
+                 :set {:v v*}
+                 :where [:and [:= :e e] [:= :a a] [:= :v v]]}
+             @qp))))
+
+      ))
+
+  )

@@ -96,8 +96,8 @@
       :password "ivan"
       :assumeMinServerVersion "10"}
 
-     {:prefix "__test_"
-      :debug? true
+     {:prefix "_tests18_"
+      :debug? false
       }
 
      ))

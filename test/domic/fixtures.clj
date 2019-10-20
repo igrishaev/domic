@@ -191,7 +191,7 @@
 
 (defn fix-test-db [t]
 
-  (let [opt {:prefix "_tests16_"
+  (let [opt {:prefix "_tests18_"
              :debug? true}]
 
     (binding [*scope* (api/->scope db-spec opt)]
@@ -201,10 +201,13 @@
       (api/init *scope*)
       (api/transact *scope* attrs)
       (api/sync-attrs *scope*)
+
+      #_
       (api/transact *scope* data)
 
       (t)
 
+      #_
       (let [{:keys [en
                     table
                     table-log

@@ -47,6 +47,15 @@
       (error! "Lookup failed: %s" lookup)))
 
 
+(defn allocate-id
+  [{:as scope :keys [table-seq
+                     en]}]
+  (let [qb (qb/builder)
+        nextval (sql/call :nextval (name table-seq))]
+    (qb/add-select qb [nextval :nextval])
+    (-> (en/query en (qb/format qb))
+        first :nextval)))
+
 (defn allocate-db-ids
   [{:as scope :keys [table-seq
                      en]}
