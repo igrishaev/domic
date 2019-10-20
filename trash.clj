@@ -1180,3 +1180,25 @@ name site country
 ~~~ :db/add id17463 :db/ident :db/ident
 <<< :db/add 141 :db/ident :db/ident
 --- :db/add 141 :db/ident :db/ident 8
+
+(doseq [[func & args] tx-fns]
+
+          (case func
+            :db/retractEntity
+            (let [[e] args]
+              (e/error! "Not implemented: %s" func))
+
+            :db/cas
+            (let [[e a v v-new] args]
+              (e/error! "Not implemented: %s" func))
+
+            ;; else
+(e/error-case! func)))
+
+
+
+(defn validate-attrs!
+  [{:as scope :keys [am]}
+   datoms]
+  (let [attrs (mapv #(get % 2) datoms)]
+    (am/validate-many! am attrs)))
