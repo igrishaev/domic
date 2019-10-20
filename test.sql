@@ -1362,5 +1362,54 @@ limit 1
 
 
 
+create table __test (
+    e integer not null,
+    a text    not null,
+    v text    not null,
+    t integer not null
+);
+
+create unique index __test_ea on __test(e, a);
+
+
+create unique index __test_v on __test(v) where a = 'artist/name';
+
+
+insert into __test values (3, 'artist/name', 'ABBA2', 0);
+
+insert into __test values
+(3, 'artist/name', 'ABBA2', 0),
+(3, 'artist/year', 1990, 0)
+on CONFLICT on constraint "__test_v"
+do update
+set v = EXCLUDED.v;
+;
+
+
+insert into __test values
+(3, 'artist/name', 'ABBA2', 0),
+(3, 'artist/year', 1990, 0)
+on CONFLICT (v) where a = 'artist/name' or a = 'artist/name2'
+do update
+set v = EXCLUDED.v;
+;
+
+
+
+
+insert into __test values (2, 'artist/name', 'ABBA2', 0)
+on CONFLICT (e, a) do update
+set v = EXCLUDED.v;
+;
+
+
+
+
+
+
+
+
+
+
 
 -------
