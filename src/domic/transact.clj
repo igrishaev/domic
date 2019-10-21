@@ -171,6 +171,11 @@
             ;; for update
             (let [attrs (keys tx-map)
                   p (p/pull scope attrs e)
+
+                  _ (when-not p
+                      (e/error! "Entity %s is not found" e))
+
+                  ;; turn ref maps into integers
                   p (into-map (for [[a v] p]
                                 (if (am/ref? am a)
                                   [a (:db/id v)]

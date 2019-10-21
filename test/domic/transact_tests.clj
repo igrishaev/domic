@@ -135,8 +135,57 @@
               :band/genres #{"rock1" "rock2" "Rock1" " rock1 "}}))))
 
 
-;; test upsert doesn't exists
-;; test upsert new/existing attrs
+(deftest test-upsert-eid-not-found
+
+  (with-thrown? #"not found"
+    (tr [{:db/id 99999999
+          :band/name "Queen"}])))
+
+
+(deftest test-upsert-simple
+
+  (tr [{:band/name "Queen"}])
+
+  (let [e (resolve* [:band/name "Queen"])
+        p (api/pull *scope* '[*] e)]
+
+    (is (= p {:db/id e
+              :band/name "Queen"}))
+
+    (tr [{:db/id e
+          :band/name "Queen2"
+          :band/country :country/england}])
+
+    (let [p (api/pull *scope* '[*] e)]
+
+      (is (= p {:db/id e
+                :band/name "Queen2"
+                :band/country #:db{:id 100000}})))))
+
+
+(deftest test-upsert-multiple-attrl
+
+  (tr [{:db/ident :rtaylor
+        :person/full-name "Roger Taylor"}
+
+       {:db/ident :bmay
+        :person/full-name "Brian May"}
+
+       {:db/ident :queen
+        :band/name "Queen"
+        :band/members [:rtaylor :bmay]}])
+
+  (let [e (resolve* [:band/name "Queen"])]
+
+    (tr [{:db/ident :jdeacon
+          :person/full-name "John Deacon"}
+
+         {:db/ident :queen
+          :band/members [:jdeacon]}])
+
+    (let [p (api/pull *scope* '[*] e)]
+      (is (-> p :band/members set count (= 3))))))
+
 
 ;; test upsert identity
 ;; test insert identity
