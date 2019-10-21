@@ -239,6 +239,25 @@
     (tr [{:release/band "missing"}])))
 
 
+(deftest test-eid-lookup-ident
+
+  (tr [{:db/ident :queen
+        :band/name "Queen"}])
+
+  (tr [{:db/id [:band/name "Queen"]
+        :band/country :country/england}])
+
+  (tr [{:db/id :queen
+        :band/genres #{"rock"}}])
+
+  )
+
+
+
+
+
+
+
 #_
 (deftest test-upsert-by-unique-ident-conflict-with-temp-id
 
