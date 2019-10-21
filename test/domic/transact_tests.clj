@@ -105,6 +105,21 @@
               :person/full-name "Roger Taylor"}]}))))
 
 
+(deftest lookup-is-missing
+
+  #_
+  (with-thrown? #"Unknown attr")
+
+  (tr [{:person/gender [:db/ident :gender/dunno]
+        :person/full-name "Roger Taylor"}])
+  #_
+  (tr [{:band/name "Queen"
+        :band/country :country/england
+        :band/members [[:person/full-name "Somebody Someone "]]}])
+
+  )
+
+
 ;; test insert multiple attrs
 
 ;; test upsert doesn't exists
