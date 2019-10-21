@@ -105,7 +105,7 @@
               :person/full-name "Roger Taylor"}]}))))
 
 
-(deftest lookup-is-missing
+(deftest test-lookup-is-missing
 
   (with-thrown? #"Lookup failed"
     (tr [{:person/gender [:db/ident :gender/dunno]
@@ -121,7 +121,19 @@
           :band/members [[:person/full-name "Somebody Someone "]]}])))
 
 
-;; test insert multiple attrs
+(deftest test-insert-multiple-attr
+
+  (tr [{:band/name "Queen"
+        :band/country :country/england
+        :band/genres ["rock1" "rock2" "rock2" "Rock1" " rock1 "]}])
+
+  (let [e (resolve* [:band/name "Queen"])
+        p (api/pull *scope* '[:band/name :band/genres] e)]
+
+    (is (= p {:db/id e
+              :band/name "Queen"
+              :band/genres #{"rock1" "rock2" "Rock1" " rock1 "}}))))
+
 
 ;; test upsert doesn't exists
 ;; test upsert new/existing attrs
