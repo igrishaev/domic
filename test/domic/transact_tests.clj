@@ -107,17 +107,18 @@
 
 (deftest lookup-is-missing
 
-  #_
-  (with-thrown? #"Unknown attr")
+  (with-thrown? #"Lookup failed"
+    (tr [{:person/gender [:db/ident :gender/dunno]
+          :person/full-name "Roger Taylor"}]))
 
-  (tr [{:person/gender [:db/ident :gender/dunno]
-        :person/full-name "Roger Taylor"}])
-  #_
-  (tr [{:band/name "Queen"
-        :band/country :country/england
-        :band/members [[:person/full-name "Somebody Someone "]]}])
+  (with-thrown? #"Lookup failed"
+    (tr [{:band/name "Queen"
+          :band/country :country/russia}]))
 
-  )
+  (with-thrown? #"Lookup failed"
+    (tr [{:band/name "Queen"
+          :band/country :country/england
+          :band/members [[:person/full-name "Somebody Someone "]]}])))
 
 
 ;; test insert multiple attrs
