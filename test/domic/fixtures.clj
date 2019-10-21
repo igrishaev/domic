@@ -1,7 +1,10 @@
 (ns domic.fixtures
   (:require
+   [domic.attributes :as at]
    [domic.api :as api]
-   [domic.engine :as en]))
+   [domic.init :as init]
+
+   [clojure.java.jdbc :as jdbc]))
 
 
 (def attrs
@@ -41,7 +44,6 @@
     :db/cardinality :db.cardinality/many}
 
    ;; band
-
    {:db/ident       :band/code
     :db/valueType   :db.type/keyword
     :db/cardinality :db.cardinality/one}
@@ -189,34 +191,66 @@
 (def ^:dynamic *scope* nil)
 
 
-(defn fix-test-db [t]
-
-  (let [opt {:prefix "_tests18_"
+(defn fix-with-scope [t]
+  (let [opt {:prefix "_tests19_"
              :debug? true}]
 
     (binding [*scope* (api/->scope db-spec opt)]
+      (t))))
 
-      ;; (api/sync-attrs *scope*)
 
-      (api/init *scope*)
-      (api/transact *scope* attrs)
-      (api/sync-attrs *scope*)
+(defn fix-test-db [t]
 
-      #_
-      (api/transact *scope* data)
+  (api/init *scope*)
+  (api/transact *scope* attrs)
+  (api/sync-attrs *scope*)
+  (api/transact *scope* data)
 
-      (t)
+  (t)
 
-      #_
-      (let [{:keys [en
-                    table
-                    table-log
-                    table-seq]} *scope*
+  (let [{:keys [en
+                table
+                table-log
+                table-seq]} *scope*
 
-            queries
-            [(format "drop table %s" (name table))
-             (format "drop table %s" (name table-log))
-             (format "drop sequence %s" (name table-seq))]]
+        queries
+        [(format "drop table %s" (name table))
+         (format "drop table %s" (name table-log))
+         (format "drop sequence %s" (name table-seq))]]
 
-        (doseq [query queries]
-          (en/execute en query))))))
+    (doseq [query queries]
+      (en/execute en query))))
+
+
+(def enumerate (partial map-indexed vector))
+
+
+(defn attrs->rows
+  [attr-maps]
+
+  (let [t -1
+        rows* (transient [])]
+    (doseq [[index attr-map] (enumerate attr-maps)]
+      (let [e (+ index 100000)]
+        (doseq [[a v] attr-map]
+          (conj! rows* {:e e :a a :v v :t t}))))
+    (-> rows* persistent! not-empty)))
+
+
+(defn fix-raw-insert [t]
+
+  (init/init-tables *scope*)
+  (init/init-seq *scope*)
+
+  (let [{:keys [en table]} *scope*
+
+        rows (concat (attrs->rows at/defaults)
+                     (attrs->rows attrs))]
+
+    (jdbc/insert-multi! db-spec table rows)
+
+    (api/sync-attrs *scope*)
+
+    (t)
+
+    (jdbc/execute! db-spec (format "truncate %s" (name table)))))

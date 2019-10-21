@@ -4,6 +4,7 @@
     :refer [is deftest testing use-fixtures
             run-tests]]
 
+   [domic.utils-test :refer [with-thrown?]]
    [domic.fixtures :refer [fix-test-db *scope*]]
    [domic.engine :as en]
    [domic.api :as api])

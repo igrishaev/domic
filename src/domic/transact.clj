@@ -60,10 +60,10 @@
                      (cond
 
                        (h/lookup? v)
-                       (rt/resolve-lookup! scope v)
+                       (rt/resolve-lookup scope v)
 
                        (h/ident-id? v)
-                       (rt/resolve-lookup! scope [:db/ident v])
+                       (rt/resolve-lookup scope [:db/ident v])
 
                        (h/temp-id? v)
                        (get @id-cache v v)
@@ -123,7 +123,12 @@
 
                   (and (h/temp-id? e) (seq unique-map))
                   (let [e* (ffirst unique-map)]
+
+                    ;; check unique type
                     (swap! id-cache assoc e e*)
+
+                    ;; when ident => get this id
+                    ;; when value => raise error
                     e*)
 
                   :else e)
@@ -145,6 +150,7 @@
                   (+insert e* a v t))))
 
             (h/real-id? e)
+            ;; for update
             (let [attrs (keys tx-map)
                   p (p/pull scope attrs e)
                   p (into-map (for [[a v] p]
