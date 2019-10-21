@@ -235,8 +235,9 @@
 
 (deftest test-ref-temp-id-not-resolved
 
-  (tr [{:release/band "missing"}])
-  )
+  (with-thrown? #"Temp id .+ cannot be resolved"
+    (tr [{:release/band "missing"}])))
+
 
 #_
 (deftest test-upsert-by-unique-ident-conflict-with-temp-id

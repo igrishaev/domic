@@ -57,19 +57,21 @@
           id-cache (atom {})
 
           ;; strict resolve (throws an error)
-          resolve*! (fn [v]
-                     (cond
+          resolve-ref!
+          (fn [v]
+            (cond
 
-                       (h/lookup? v)
-                       (rt/resolve-lookup! scope v)
+              (h/lookup? v)
+              (rt/resolve-lookup! scope v)
 
-                       (h/ident-id? v)
-                       (rt/resolve-lookup! scope [:db/ident v])
+              (h/ident-id? v)
+              (rt/resolve-lookup! scope [:db/ident v])
 
-                       (h/temp-id? v)
-                       (get @id-cache v)
+              (h/temp-id? v)
+              (or (get @id-cache v)
+                  (e/error! "Temp id `%s` cannot be resolved!" v))
 
-                       :else v))
+              :else v))
 
           resolve* (fn [v]
                      (cond
@@ -97,20 +99,25 @@
               +update (fn [& args]
                         (conj! to-update* (mapv add-param args)))
 
-              ;; resolve lookups and idents in tx-map
-              tx-map (into-map
-                      (for [[a v] tx-map]
-                        (if (or (= a :db/id)
-                                (am/ref? am a))
-                          (if (am/multiple? am a)
-                            [a (mapv resolve*! v)]
-                            [a (resolve*! v)])
-                          [a v])))
-
               e (or (get tx-map :db/id)
                     (str (gensym "id")))
 
+              ;; try to resolve e
+              ;; ----------------
+
               tx-map (dissoc tx-map :db/id)
+
+              ;; resolve lookups and idents in tx-map
+              ;; for refs, act strictly
+              tx-map (into-map
+                      (for [[a v] tx-map]
+                        (if (am/ref? am a)
+                          (if (am/multiple? am a)
+                            [a (mapv resolve-ref! v)]
+                            [a (resolve-ref! v)])
+                          [a v])))
+
+
 
               unique-pairs
               (for [[a v] tx-map]
