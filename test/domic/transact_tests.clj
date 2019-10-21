@@ -187,7 +187,78 @@
       (is (-> p :band/members set count (= 3))))))
 
 
-;; test upsert identity
+(deftest test-upsert-by-unique-ident
+
+  (tr [{:band/name "Queen"}])
+
+  (tr [{:band/name "Queen"
+        :band/country :country/england}])
+
+  (let [{:keys [en table]} *scope*
+        query [(format "select * from %s where e = (select e from %s where a = ? limit 1)"
+                       (name table) (name table)) :band/name]
+        rows (en/query en query)]
+
+    (is (= (->> rows (map (juxt :a :v)) sort)
+           [["band/country" "100000"]
+            ["band/name" "Queen"]]))))
+
+
+(deftest test-upsert-by-unique-ident-conflict
+
+  (tr [{:band/name "Queen"}])
+
+  (with-thrown? #"Uniqueness conflict"
+    (tr [{:db/id 777777
+          :band/name "Queen"
+          :band/country :country/england}])))
+
+
+(deftest test-upsert-by-unique-ident-merge
+
+  (tr [{:band/name "Queen"}
+
+       {:band/name "Queen"
+        :band/country :country/england}
+
+       {:band/name "Queen"
+        :band/genres ["rock"]}])
+
+  (let [e (resolve* [:band/name "Queen"])
+        p (api/pull *scope* '[*] e)]
+
+    (is (= p {:db/id e
+              :band/name "Queen"
+              :band/country #:db{:id 100000}
+              :band/genres #{"rock"}}))))
+
+
+(deftest test-ref-temp-id-not-resolved
+
+  (tr [{:release/band "missing"}])
+  )
+
+#_
+(deftest test-upsert-by-unique-ident-conflict-with-temp-id
+
+  (tr [{:db/id "queen"
+        :band/name "Queen"}
+
+       {:release/band "queen"}
+
+       ])
+
+  (tr [])
+
+
+  #_
+  (with-thrown? #"Uniqueness conflict"
+    (tr [{:db/id 777777
+          :band/name "Queen"
+          :band/country :country/england}])))
+
+
+
 ;; test insert identity
 
 ;; test insert unique/value
