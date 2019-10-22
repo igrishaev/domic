@@ -4,6 +4,8 @@
   (:import
    clojure.lang.Reflector))
 
+;; todo
+;; try https://github.com/vertical-blank/sql-formatter
 
 (defonce
   formatter
