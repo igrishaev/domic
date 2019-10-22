@@ -384,6 +384,27 @@
                 ["profile/code" "A4"]])))))
 
 
+(deftest test-updaset-with-two-unique-idents-conflict
+
+  (with-thrown? #"Uniqueness conflict"
+
+    (tr [{:db/id "abba"
+          :band/name "ABBA"}
+
+         {:db/id "pf"
+          :band/name "Pink Floyd"}
+
+         {:profile/code "A1"
+          :profile/band "abba"}
+
+         {:profile/code "A2"
+          :profile/band2 "pf"}
+
+         {:profile/code "A3"
+          :profile/band "abba"
+          :profile/band2 "pf"}])))
+
+
 ;; test unique/value
 ;; test insert same/attr
 ;; test not overwritten (by t)
