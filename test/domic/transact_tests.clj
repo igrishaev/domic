@@ -35,6 +35,7 @@
 (defn tr [tx-maps]
   (api/transact *scope* tx-maps))
 
+
 (defn resolve* [lookup]
   (rt/resolve-lookup! *scope* lookup))
 
@@ -292,6 +293,52 @@
                ["band/genres" "rock2"]
                ["band/name" "Queen"]
                ["db/ident" "queen"])))))
+
+
+(deftest test-insert-ident-with-ref
+
+  (tr [{:db/id "abba"
+        :db/ident :abba
+        :band/name "ABBA"}
+
+       {:profile/band "abba"
+        :profile/code "A1"}])
+
+  (tr [{:profile/band [:band/name "ABBA"]
+        :profile/code "A2"}])
+
+  (let [e (resolve* [:db/ident :abba])
+        p (pull* :profile/band)]
+    (is (= p [["profile/band" (str e)]
+              ["profile/code" "A2"]])))
+
+  (tr [{:profile/band :abba
+        :profile/code "A3"}])
+
+  (let [e (resolve* [:db/ident :abba])
+        p (pull* :profile/band)]
+    (is (= p [["profile/band" (str e)]
+              ["profile/code" "A3"]])))
+
+  #_
+  (tr [{:db/id "tempid"
+        :profile/band :abba
+        :profile/code "A3"}
+
+       {:release/band "tempid"}
+
+       ]
+
+      )
+
+  #_
+  (tr [{:db/id 999999
+        :profile/band :abba
+        :profile/code "A3"}])
+
+
+
+  )
 
 
 ;; test insert identity

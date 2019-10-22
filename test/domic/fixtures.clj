@@ -81,6 +81,16 @@
     :db/valueType   :db.type/string
     :db/cardinality :db.cardinality/many}
 
+   ;; band profile (1-to-1 test)
+   {:db/ident       :profile/band
+    :db/valueType   :db.type/ref
+    :db/unique      :db.unique/identity
+    :db/cardinality :db.cardinality/one}
+
+   {:db/ident       :profile/code
+    :db/valueType   :db.type/string
+    :db/cardinality :db.cardinality/one}
+
    ;; release
    {:db/ident       :release/title
     :db/valueType   :db.type/string
