@@ -17,6 +17,7 @@
 ;; limits for backrefs
 ;; attr aliases
 ;; try weird attrs
+;; issue when return null for attr subset (transact)
 
 
 (def WC '*)

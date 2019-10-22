@@ -73,19 +73,25 @@
 
               :else v))
 
-          resolve* (fn [v]
-                     (cond
+          resolve-unique
+          (fn [a v]
+            (rt/resolve-lookup scope [a v]))
 
-                       (h/lookup? v)
-                       (rt/resolve-lookup scope v)
+          ;; non-strict resolve
+          resolve-e!
+          (fn [v]
+            (cond
 
-                       (h/ident-id? v)
-                       (rt/resolve-lookup scope [:db/ident v])
+              (h/lookup? v)
+              (rt/resolve-lookup! scope v)
 
-                       (h/temp-id? v)
-                       (get @id-cache v v)
+              (h/ident-id? v)
+              (rt/resolve-lookup! scope [:db/ident v])
 
-                       :else v))
+              (h/temp-id? v)
+              (get @id-cache v v)
+
+              :else v))
 
           ]
 
@@ -103,7 +109,7 @@
                     (str (gensym "id")))
 
               ;; try to resolve e
-              ;; ----------------
+              e (resolve-e! e)
 
               tx-map (dissoc tx-map :db/id)
 
@@ -117,13 +123,11 @@
                             [a (resolve-ref! v)])
                           [a v])))
 
-
-
               unique-pairs
               (for [[a v] tx-map]
 
                 (when (am/unique? am a)
-                  (when-let [e* (resolve* [a v])]
+                  (when-let [e* (resolve-unique a v)]
                     (cond
 
                       (am/unique-identity? am a)
@@ -176,8 +180,7 @@
 
             (h/real-id? e)
             ;; for update
-            (let [attrs (keys tx-map)
-                  p (p/pull scope attrs e)
+            (let [p (p/pull scope '[*] e)
 
                   _ (when-not p
                       (e/error! "Entity %s is not found" e))

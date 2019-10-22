@@ -13,8 +13,23 @@
    java.net.URI))
 
 
+;; todo
+;; custom pull
+
+
 (use-fixtures :once fix/fix-with-scope)
 (use-fixtures :each fix/fix-raw-insert)
+
+
+(defn pull*
+  [attr]
+
+  (let [{:keys [en table]} *scope*
+        query [(format "select * from %s where e = (select e from %s where a = ? limit 1)"
+                       (name table) (name table)) attr]
+        rows (en/query en query)]
+
+    (->> rows (map (juxt :a :v)) sort)))
 
 
 (defn tr [tx-maps]
@@ -194,14 +209,10 @@
   (tr [{:band/name "Queen"
         :band/country :country/england}])
 
-  (let [{:keys [en table]} *scope*
-        query [(format "select * from %s where e = (select e from %s where a = ? limit 1)"
-                       (name table) (name table)) :band/name]
-        rows (en/query en query)]
+  (let [p (pull* :band/name)]
 
-    (is (= (->> rows (map (juxt :a :v)) sort)
-           [["band/country" "100000"]
-            ["band/name" "Queen"]]))))
+    (is (= p [["band/country" "100000"]
+              ["band/name" "Queen"]]))))
 
 
 (deftest test-upsert-by-unique-ident-conflict
@@ -241,7 +252,8 @@
 
 (deftest test-eid-lookup-ident
 
-  (tr [{:db/ident :queen
+  (tr [{:db/id "queen_id"
+        :db/ident :queen
         :band/name "Queen"}])
 
   (tr [{:db/id [:band/name "Queen"]
@@ -250,33 +262,36 @@
   (tr [{:db/id :queen
         :band/genres #{"rock"}}])
 
-  )
+  (let [p (pull* :band/name)]
+
+    (is (= p '(["band/country" "100000"]
+               ["band/genres" "rock"]
+               ["band/name" "Queen"]
+               ["db/ident" "queen"])))))
 
 
+(deftest test-eid-lookup-ident-in-single-tr
 
-
-
-
-
-#_
-(deftest test-upsert-by-unique-ident-conflict-with-temp-id
-
-  (tr [{:db/id "queen"
+  (tr [{:db/id "queen_id"
+        :db/ident :queen
         :band/name "Queen"}
 
-       {:release/band "queen"}
+       {:db/id [:band/name "Queen"]
+        :band/country :country/england}
 
-       ])
+       {:db/id :queen
+        :band/genres #{"rock"}}
 
-  (tr [])
+       {:db/id "queen_id"
+        :band/genres #{"rock2"}}])
 
+  (let [p (pull* :band/name)]
 
-  #_
-  (with-thrown? #"Uniqueness conflict"
-    (tr [{:db/id 777777
-          :band/name "Queen"
-          :band/country :country/england}])))
-
+    (is (= p '(["band/country" "100000"]
+               ["band/genres" "rock"]
+               ["band/genres" "rock2"]
+               ["band/name" "Queen"]
+               ["db/ident" "queen"])))))
 
 
 ;; test insert identity
