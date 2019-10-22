@@ -320,28 +320,31 @@
     (is (= p [["profile/band" (str e)]
               ["profile/code" "A3"]])))
 
-  #_
   (tr [{:db/id "tempid"
         :profile/band :abba
-        :profile/code "A3"}
+        :profile/code "A4"}
 
-       {:release/band "tempid"}
+       {:release/band "tempid"
+        :release/label "Foo Records"}])
 
-       ]
+  (let [band (resolve* [:db/ident :abba])
+        prof (resolve* [:profile/band band])
+        p1 (pull* :release/band)
+        p2 (pull* :profile/band)]
 
-      )
+    (is (= p1 [["release/band" (str prof)]
+               ["release/label" "Foo Records"]]))
 
-  #_
-  (tr [{:db/id 999999
-        :profile/band :abba
-        :profile/code "A3"}])
+    (is (= p2 [["profile/band" (str band)]
+               ["profile/code" "A4"]])))
+
+  (with-thrown? #"Uniqueness conflict"
+    (tr [{:db/id 333
+          :profile/band :abba
+          :profile/code "A5"}])))
 
 
-
-  )
-
-
-;; test insert identity
-
-;; test insert unique/value
-;; test insert unique + ref + ident
+;; test unique/value
+;; test insert same/attr
+;; test not overwritten (by t)
+;; test t
