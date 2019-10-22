@@ -128,6 +128,7 @@
 
                 (when (am/unique? am a)
                   (when-let [e* (resolve-unique a v)]
+
                     (cond
 
                       (am/unique-identity? am a)
@@ -223,11 +224,19 @@
 
           (when-let [to-update (-> to-update* persistent! seq)]
             (doseq [[e a v v*] to-update]
-              (en/execute-map
-               en {:update table
-                   :set {:v v*}
-                   :where [:and [:= :e e] [:= :a a] [:= :v v]]}
-               @qp))))
+
+              ;; get attr out from params
+              (let [a* (get @qp (:name a))
+                    db-type (am/db-type am a*)]
+
+                (en/execute-map
+                 en {:update table
+                     :set {:v v*}
+                     :where [:and
+                             [:= :e e]
+                             [:= :a a]
+                             [:= (h/->cast :v db-type) v]]}
+                 @qp)))))
 
         )))
 

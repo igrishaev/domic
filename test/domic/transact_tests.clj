@@ -344,6 +344,46 @@
           :profile/code "A5"}])))
 
 
+(deftest test-updaset-with-two-unique-idents
+
+  (tr [{:db/id "abba"
+        :band/name "ABBA"}
+
+       {:db/id "queen"
+        :band/name "Queen"}
+
+       {:db/id "pf"
+        :band/name "Pink Floyd"}
+
+       {:profile/code "A1"
+        :profile/band "abba"
+        :profile/band2 "queen"}
+
+       {:profile/code "A3"
+        :profile/band "abba"
+        :profile/band2 "pf"}])
+
+  (let [abba (resolve* [:band/name "ABBA"])
+        queen (resolve* [:band/name "Queen"])
+        pf (resolve* [:band/name "Pink Floyd"])]
+
+    (let [p (pull* :profile/code)]
+
+      (is (= p [["profile/band" (str abba)]
+                ["profile/band2" (str pf)]
+                ["profile/code" "A3"]])))
+
+    (tr [{:profile/code "A4"
+          :profile/band abba
+          :profile/band2 queen}])
+
+    (let [p (pull* :profile/code)]
+
+      (is (= p [["profile/band" (str abba)]
+                ["profile/band2" (str queen)]
+                ["profile/code" "A4"]])))))
+
+
 ;; test unique/value
 ;; test insert same/attr
 ;; test not overwritten (by t)

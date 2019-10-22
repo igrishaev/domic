@@ -87,6 +87,11 @@
     :db/unique      :db.unique/identity
     :db/cardinality :db.cardinality/one}
 
+   {:db/ident       :profile/band2
+    :db/valueType   :db.type/ref
+    :db/unique      :db.unique/identity
+    :db/cardinality :db.cardinality/one}
+
    {:db/ident       :profile/code
     :db/valueType   :db.type/string
     :db/cardinality :db.cardinality/one}
